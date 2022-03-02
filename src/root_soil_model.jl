@@ -126,8 +126,8 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
     land::RootSoilModel{FT, SM, RM},
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
     function update_aux!(p, Y, t)
-        @. p.root_extraction = FT(0.0)
         ##Science goes here
+        @. p.root_extraction = FT(0.0)
     end
     return update_aux!
 end
