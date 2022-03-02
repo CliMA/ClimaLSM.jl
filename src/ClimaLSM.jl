@@ -6,6 +6,7 @@ import ClimaCore: Fields
 include("SharedUtilities/Domains.jl")
 using .Domains
 include("SharedUtilities/models.jl")
+export  make_interactions_update_aux
 
 
 """
@@ -74,7 +75,7 @@ function make_update_aux(land::AbstractLandModel)
         for f! in update_aux_function_list
             f!(p, Y, t)
         end
-        interactions_update_aux!(p, Y, t) # this has to come last if it uses p.component.value!!
+        interactions_update_aux!(p, Y, t) # this has to come last.
     end
 
 
@@ -104,7 +105,7 @@ using .Soil
 import .Soil: source!, boundary_fluxes
 include("Vegetation/Roots.jl")
 using .Roots
-import .Roots: flow_out_roots
+import .Roots: ground_area_flux_out_roots
 
 ### Concrete types of AbstractLandModels
 ### and associated methods
