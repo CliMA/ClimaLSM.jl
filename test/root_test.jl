@@ -1,11 +1,14 @@
 const a_root = FT(13192)
 const a_stem = FT(515.5605)
-const b_root = FT(2.1079)
-const b_stem = FT(0.9631)
-const size_reservoir_leaf_moles = FT(16766.2790)
-const size_reservoir_stem_moles = FT(11000.8837)
-const K_max_root_moles = FT(12.9216)
-const K_max_stem_moles = FT(3.4415)
+const b_root = FT(2.1079/1e6) # Inverse Pa
+const b_stem = FT(0.9631/1e6) # Inverse Pa
+const h_leaf = FT(0.01) #10mm, guess
+const h_stem = FT(1.0) # 1m shrub :)
+const K_max_stem = FT(4e-13)
+const K_max_root = FT(1e-12)
+const SAI = FT(0.01)
+const RAI = FT(0.01)
+const LAI = FT(0.1)
 const z_leaf = FT(12) # height of leaf
 const z_root_depths = [FT(-1.0)] # m, rooting depth
 const z_bottom_stem = FT(0.0)
@@ -16,16 +19,19 @@ param_set = Roots.RootsParameters{FT}(
     b_root,
     a_stem,
     b_stem,
-    size_reservoir_stem_moles,
-    size_reservoir_leaf_moles,
-    K_max_root_moles,
-    K_max_stem_moles,
+    h_stem,
+    h_leaf,
+    K_max_root,
+    K_max_stem,
+    LAI,
+    RAI,
+    SAI,
+    (z) -> 1.0
 )
 
 function leaf_transpiration(t::ft) where {ft}
-    mass_mole_water = ft(0.018)
     T = ft(0.0)
-    T_0 = ft(0.01 / mass_mole_water)
+    T_0 = ft(0.5555/5.555e4*LAI)
     if t < ft(500)
         T = T_0
     elseif t < ft(1000)
@@ -36,7 +42,7 @@ function leaf_transpiration(t::ft) where {ft}
     return T
 end
 
-const p_soil0 = [FT(-0.02)]
+const p_soil0 = [FT(-2.0)]
 transpiration = PrescribedTranspiration{FT}((t::FT) -> leaf_transpiration(t))
 root_extraction = PrescribedSoilPressure{FT}((t::FT) -> p_soil0)
 roots = Roots.RootsModel{FT}(;
@@ -50,42 +56,42 @@ roots = Roots.RootsModel{FT}(;
 
 
 function f!(F, Y)
-    T0 = 0.01 / 0.018
+    T0 = 0.5555/5.555e4*LAI
     flow_in_stem = sum(
-        flow.(
+        ground_area_flux.(
             z_root_depths,
             z_bottom_stem,
             p_soil0,
             Y[1],
             a_root,
             b_root,
-            K_max_root_moles,
+            K_max_root,
         ),
     )
-    flow_out_stem = flow(
+    flow_out_stem = ground_area_flux(
         z_bottom_stem,
         z_leaf,
         Y[1],
         Y[2],
         a_stem,
         b_stem,
-        K_max_stem_moles,
+        K_max_stem,
     )
     F[1] = flow_in_stem - T0
     F[2] = flow_out_stem - T0
 end
 
-soln = nlsolve(f!, [-1.0, -0.9])
+soln = nlsolve(f!, [-50.0, -20.0])
 p_stem_ini = soln.zero[1]
 p_leaf_ini = soln.zero[2]
 
 theta_stem_0 = p_to_theta(p_stem_ini)
 theta_leaf_0 = p_to_theta(p_leaf_ini)
-y1_0 = FT(theta_stem_0 * size_reservoir_stem_moles)
-y2_0 = FT(theta_leaf_0 * size_reservoir_leaf_moles)
+y1_0 = FT(theta_stem_0)
+y2_0 = FT(theta_leaf_0)
 y0 = [y1_0, y2_0]
 Y, p, coords = initialize(roots)
-Y.vegetation.rwc .= y0
+Y.vegetation.theta .= y0
 
 root_ode! = make_ode_function(roots)
 

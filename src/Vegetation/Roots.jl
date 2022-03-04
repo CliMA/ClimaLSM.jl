@@ -75,7 +75,8 @@ import ClimaLSM:
     name
 export RootsModel,
     AbstractVegetationModel,
-    flow,
+    ground_area_flux,
+    ground_area_flux_out_roots,
     theta_to_p,
     p_to_theta,
     RootsParameters,
@@ -130,27 +131,35 @@ $(DocStringExtensions.FIELDS)
 struct RootsParameters{FT <: AbstractFloat}
     "controls the shape and steepness of conductance vs. pressure curve, for roots: unitless"
     a_root::FT
-    "controls the steepness of the relative conductance vs. pressure curve, for roots: inverse MPa"
+    "controls the steepness of the relative conductance vs. pressure curve, for roots: inverse Pa"
     b_root::FT
     "controls the shape and steepness of relative conductance vs. pressure curve, for stems: unitless"
     a_stem::FT
-    "controls the steepness of the conductance vs. pressure curve, for stems: inverse MPa"
+    "controls the steepness of the conductance vs. pressure curve, for stems: inverse Pa"
     b_stem::FT
-    "the physical size of the stem, in moles"
-    size_reservoir_stem_moles::FT
-    "the physical size of the leaves, in moles"
-    size_reservoir_leaf_moles::FT
-    "water conductance in roots (moles/s/MPa) when pressure is zero, a maximum"
-    K_max_root_moles::FT
-    "water conductance in stems (moles/s/MPa) when pressure is zero, a maximum"
-    K_max_stem_moles::FT
+    "height of stem (m)"
+    h_stem::FT
+    "thickness of the leaves (m)"
+    h_leaf::FT
+    "maximum water conductance in roots (m^3/s/Pa/m^2 conducting area)"
+    K_max_root::FT
+    "maximum water conductance in stems (m^3/s/Pa/m^2 conducting area)"
+    K_max_stem::FT
+    "Leaf area index: surface area of leaves/area of ground"
+    LAI::FT
+    "root area index: cross section of roots/area of ground"
+    RAI::FT
+    "Stem area index: cross section of stem/area of ground"
+    SAI::FT
+    "Root distribution function P(z)"
+    root_distribution_function::Function
 end
 
 """
     RootsModel{FT, PS, D, RE, T, B} <: AbstractVegetationModel{FT}
 
 Defines, and constructs instances of, the RootsModel type, which is used
-for simulation flow of water to/from soil, along roots of different depths,
+for simulation ground_area_flux of water to/from soil, along roots of different depths,
 along a stem, to a leaf, and ultimately being lost from the system by
 transpiration. 
 
@@ -186,10 +195,10 @@ end
 A function which returns the names of the prognostic 
 variables of the `RootsModel`.
 """
-prognostic_vars(model::RootsModel) = (:rwc,)
+prognostic_vars(model::RootsModel) = (:theta,)
 
 """
-    function flow(
+    function ground_area_flux(
         z1::FT,
         z2::FT,
         p1::FT,
@@ -199,12 +208,12 @@ prognostic_vars(model::RootsModel) = (:rwc,)
         Kmax::FT,
     ) where {FT}
 
-Computes the flow of water (moles/sec)  given the height and pressures
+Computes the ground_area_flux of water (volume of water/ground area/second)  given the height and pressures
 at two points. Here, `a`, `b, and `Kmax` are parameters
 which parameterize the hydraulic conductance of the pathway along which
-the flow occurs.
+the ground_area_flux occurs.
 """
-function flow(
+function ground_area_flux(
     z1::FT,
     z2::FT,
     p1::FT,
@@ -213,9 +222,9 @@ function flow(
     b::FT,
     Kmax::FT,
 )::FT where {FT}
-    u1, u2, A, B, flow_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
-    flow = vc_integral(u1, u2, A, B, flow_approx)
-    return flow
+    u1, u2, A, B, ground_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
+    ground_area_flux = vc_integral(u1, u2, A, B, ground_area_flux_approx)
+    return ground_area_flux
 end
 
 """
@@ -232,7 +241,7 @@ end
 Approximates the vc integral given the height and pressures
 at two points. Here, `a`, `b, and `Kmax` are parameters
 which parameterize the hydraulic conductance of the pathway along which
-the flow occurs.
+the ground_area_flux occurs.
 """
 function vc_integral_approx(
     z1::FT,
@@ -242,43 +251,42 @@ function vc_integral_approx(
     a::FT,
     b::FT,
     Kmax::FT,
-) where {FT}
-    rhog_MPa = FT(0.0098)
+    ) where {FT}
+    ρg = FT(9800) # Pa/m
     u1 = a * exp(b * p1)
     u2 = a * exp(b * p2)
     num1 = log(u1 + FT(1))
     num2 = log(u2 + FT(1))
     c = Kmax * (a + FT(1)) / a
-    d = rhog_MPa * (z2 - z1)
-    flow_approx = -c / b * (num2 - num1) * (p2 - p1 + d) / (p2 - p1) # this is NaN if p2 = p1
-    A = c * d + flow_approx
-    B = -c * flow_approx / (b * A)
-    return u1, u2, A, B, flow_approx
+    d = ρg * (z2 - z1)
+    ground_area_flux_approx = -c / b * (num2 - num1) * (p2 - p1 + d) / (p2 - p1) # this is NaN if p2 = p1
+    A = c * d + ground_area_flux_approx
+    B = -c * ground_area_flux_approx / (b * A)
+    return u1, u2, A, B, ground_area_flux_approx
 end
 
 """
-    vc_integral(u1::FT, u2::FT, A::FT, B::FT, flow_approx::FT) where {FT}
+    vc_integral(u1::FT, u2::FT, A::FT, B::FT, ground_area_flux_approx::FT) where {FT}
 
-Computes the vc integral given the approximate flow.
+Computes the vc integral given the approximate ground_area_flux.
 """
-function vc_integral(u1::FT, u2::FT, A::FT, B::FT, flow_approx::FT) where {FT}
-    flow = B * log((u2 * A + flow_approx) / (u1 * A + flow_approx))
-    return flow
+function vc_integral(u1::FT, u2::FT, A::FT, B::FT, ground_area_flux_approx::FT) where {FT}
+    ground_area_flux = B * log((u2 * A + ground_area_flux_approx) / (u1 * A + ground_area_flux_approx))
+    return ground_area_flux
 end
 
 """
     theta_to_p(theta::FT) where {FT}
 
-Computes the volumetric water content (moles/moles) given pressure (p).
+Computes the volumetric water content given pressure (p).
 Currently this is using appropriate vG parameters for loamy type soil.
-First the head (m) is computed, and then converted to a pressure in MPa.
 """
 function theta_to_p(theta::FT) where {FT}
     α = FT(5.0) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
-    rhog_MPa = FT(0.0098) #MPa/m
-    p = -((theta^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * rhog_MPa
+    ρg = FT(9800) # Pa/m
+    p = -((theta^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
     return p
 end
 
@@ -288,15 +296,13 @@ end
 
 Computes the pressure (p)  given the volumetric water content (theta).
 Currently this is using appropriate vG parameters for loamy type soil.
-The pressure (MPa)  must be converted to meters (head) for use in the
-van Genuchten formula.
 """
 function p_to_theta(p::FT) where {FT}
     α = FT(5.0) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
-    rhog_MPa = FT(0.0098) #MPa/m
-    theta = ((-α * (p / rhog_MPa))^n + FT(1.0))^(-m)
+    ρg = FT(9800) # Pa/m
+    theta = ((-α * (p / ρg))^n + FT(1.0))^(-m)
     return theta
 end
 
@@ -308,38 +314,35 @@ A function which creates the rhs! function for the RootsModel.
 
 The rhs! function must comply with a rhs function of OrdinaryDiffEq.jl.
 """
-function make_rhs(model::RootsModel)
+function make_rhs(model::RootsModel{FT}) where {FT}
     function rhs!(dY, Y, p, t)
         @unpack a_root,
         b_root,
-        K_max_root_moles,
-        size_reservoir_stem_moles,
+        K_max_root,
         a_stem,
         b_stem,
-        K_max_stem_moles,
-        size_reservoir_leaf_moles = model.param_set
+        K_max_stem,
+        SAI, RAI, LAI, h_stem, h_leaf = model.param_set
 
         z_stem, z_leaf = model.domain.compartment_heights
 
-        p_stem = theta_to_p(Y.vegetation.rwc[1] / size_reservoir_stem_moles)
-        p_leaf = theta_to_p(Y.vegetation.rwc[2] / size_reservoir_leaf_moles)
+        p_stem = theta_to_p(Y.vegetation.theta[1])
+        p_leaf = theta_to_p(Y.vegetation.theta[2])
 
-        # Flows are in moles/second
-        flow_in_stem = flow_out_roots(model.root_extraction, model, Y, p, t)
+        ground_area_flux_in_stem = ground_area_flux_out_roots(model.root_extraction, model, Y, p, t)
 
-        flow_out_stem = flow(
+        ground_area_flux_out_stem = ground_area_flux(
             z_stem,
             z_leaf,
             p_stem,
             p_leaf,
             a_stem,
             b_stem,
-            K_max_stem_moles,
+            K_max_stem,
         )
 
-        dY.vegetation.rwc[1] = flow_in_stem - flow_out_stem
-        dY.vegetation.rwc[2] =
-            flow_out_stem - transpiration(model.transpiration, t)
+        dY.vegetation.theta[1] = FT(1.0)/h_stem*(ground_area_flux_in_stem*RAI/SAI - ground_area_flux_out_stem)
+        dY.vegetation.theta[2] = FT(1.0)/h_leaf*(ground_area_flux_out_stem*SAI/LAI - transpiration(model.transpiration, t))
     end
     return rhs!
 end
@@ -347,7 +350,7 @@ end
 """
     PrescribedSoilPressure{FT} <: AbstractRootExtraction{FT}
 
-A concrete type used for dispatch when computing the `flow_out_roots`,
+A concrete type used for dispatch when computing the `ground_area_flux_out_roots`,
 in the case where the soil pressure at each root layer is prescribed.
 """
 struct PrescribedSoilPressure{FT} <: AbstractRootExtraction{FT}
@@ -365,7 +368,7 @@ struct PrescribedTranspiration{FT} <: AbstractTranspiration{FT}
 end
 
 """
-    flow_out_roots(
+    ground_area_flux_out_roots(
         re::PrescribedSoilPressure{FT},
         model::RootsModel{FT},
         Y::ClimaCore.Fields.FieldVector,
@@ -373,33 +376,32 @@ end
         t::FT,
     )::FT where {FT}
 
-A method which computes the flow between the soil and the stem, via the roots,
-in the case of a standalone root model with prescribed soil pressure (in MPa)
+A method which computes the ground_area_flux between the soil and the stem, via the roots,
+in the case of a standalone root model with prescribed soil pressure
 at the root tips.
 
-This assumes that the stem compartment is the first element of `Y.roots.rwc`.
+This assumes that the stem compartment is the first element of `Y.roots.theta`.
 """
-function flow_out_roots(
+function ground_area_flux_out_roots(
     re::PrescribedSoilPressure{FT},
     model::RootsModel{FT},
     Y::ClimaCore.Fields.FieldVector,
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    @unpack a_root, b_root, K_max_root_moles, size_reservoir_stem_moles =
+    @unpack a_root, b_root, K_max_root, =
         model.param_set
-    p_stem = theta_to_p(Y.vegetation.rwc[1] / size_reservoir_stem_moles)
+    p_stem = theta_to_p(Y.vegetation.theta[1])
     return sum(
-        flow.(
+        ground_area_flux.(
             model.domain.root_depths,
             model.domain.compartment_heights[1],
             re.p_soil(t),
             p_stem,
             a_root,
             b_root,
-            K_max_root_moles,
-        ),
-    )
+            K_max_root,
+        ) .* model.param_set.root_distribution_function.(model.domain.root_depths))
 end
 
 """
@@ -408,7 +410,7 @@ end
         t::FT,
     )::FT where {FT}
 
-A method which computes the transpiration in moles/sec between the leaf
+A method which computes the transpiration in volume of water/ground area/second between the leaf
 and the atmosphere,
 in the case of a standalone root model with prescribed transpiration rate.
 """

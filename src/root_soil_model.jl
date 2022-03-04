@@ -3,7 +3,7 @@ using .Soil
 import .Soil: source
 include("Vegetation/Roots.jl")
 using .Roots
-import .Roots: flow_out_roots
+import .Roots: ground_area_flux_out_roots
 
 export RootSoilModel
 """
@@ -165,7 +165,7 @@ hydraulics are modeled prognostically.
 It is computed by summing the flow of water between
 roots and soil at each soil layer.
 """
-function Roots.flow_out_roots(
+function Roots.ground_area_flux_out_roots(
     re::PrognosticSoilPressure{FT},
     model::Roots.RootsModel{FT},
     Y::ClimaCore.Fields.FieldVector,
