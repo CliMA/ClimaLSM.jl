@@ -67,7 +67,8 @@ function RootSoilModel{FT}(;
 
     ##These should always be set by the constructor.
     sources = (RootExtraction{FT}(),)
-    root_extraction = PrognosticSoilPressure{FT}()
+    Δz = ######
+    root_extraction = PrognosticSoilPressure{FT}(Δz)
 
     soil = soil_model_type(;
         boundary_conditions = boundary_fluxes,
@@ -126,8 +127,18 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
     land::RootSoilModel{FT, SM, RM},
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
     function update_aux!(p, Y, t)
-        ##Science goes here
-        @. p.root_extraction = FT(0.0)
+        @unpack a_root, b_root, K_max_root, =
+            land.vegetation.param_set
+        gf = ground_area_flux.(
+            model.domain.root_depths,
+            model.domain.compartment_heights[1],
+            (land.soil.coordinates+p.soil.ψ)*FT(9800),
+            Roots.theta_to_p(Y.vegetation.theta[1]),
+            a_root,
+            b_root,
+            K_max_root,
+        ) .* land.vegetation.param_set.root_distribution_function.(land.vegetation.domain.root_depths)
+        @. p.root_extraction = gf ./  land.vegetation.root_extraction.Δz .* land.vegetation.params.RAI
     end
     return update_aux!
 end
@@ -146,7 +157,9 @@ This is paired with the source term `RootExtraction`, which returns
 the flow of water between roots and soil in units of 1/sec, 
 rather than moles/sec, as needed by the soil model.
 """
-struct PrognosticSoilPressure{FT} <: Roots.AbstractRootExtraction{FT} end
+struct PrognosticSoilPressure{FT} <: Roots.AbstractRootExtraction{FT}
+    Δz::FT
+end
 
 """
     Roots.flow_out_roots(
@@ -172,7 +185,7 @@ function Roots.ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    return sum(p.root_extraction)
+        return sum(p.root_extraction ./ model.params.RAI .* re.Δz^2.0)
 end
 
 """

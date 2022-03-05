@@ -28,7 +28,7 @@ const SAI = FT(0.1)
 const RAI = FT(0.1)
 const LAI = FT(0.3)
 const z_leaf = FT(0.5) # height of leaf
-const z_root_depths = FT.([-1.0]) # m, rooting depth
+const z_root_depths = FT.([-0.4,-0.3,-0.2,-0.1]) # m, rooting depth
 const z_bottom_stem = FT(0.0)
 
 root_domain = RootDomain{FT}(z_root_depths, [z_bottom_stem, z_leaf])
@@ -44,7 +44,7 @@ param_set = Roots.RootsParameters{FT}(
     LAI,
     RAI,
     SAI,
-    (z) -> 1.0
+    (z) -> FT(1.0/0.25)*exp(z/FT(0.25)) # exponential root distribution
 )
 
 function leaf_transpiration(t::ft) where {ft}
@@ -60,7 +60,7 @@ function leaf_transpiration(t::ft) where {ft}
     return T
 end
 
-const p_soil0 = FT.([-2e6])
+const p_soil0 = FT.([-2e6, -2e6, -2e6, -2e6])
 transpiration = PrescribedTranspiration{FT}((t::FT) -> leaf_transpiration(t))
 root_extraction = PrescribedSoilPressure{FT}((t::FT) -> p_soil0)
 roots = Roots.RootsModel{FT}(;
@@ -83,9 +83,7 @@ function f!(F, Y)
             Y[1],
             a_root,
             b_root,
-            K_max_root,
-        ),
-    )
+            K_max_root).* roots.param_set.root_distribution_function.(roots.domain.root_depths).* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
     flow_out_stem = ground_area_flux(
         z_bottom_stem,
         z_leaf,
@@ -131,17 +129,15 @@ p_leaf = theta_to_p.(y_2)
 function f2!(F, Y)
     p_soilf = p_soil0
     Tf = 1e-5* 3.0
-    flow_in_stem = sum(
-         ground_area_flux.(
+  flow_in_stem = sum(
+        ground_area_flux.(
             z_root_depths,
             z_bottom_stem,
             p_soilf,
             Y[1],
             a_root,
             b_root,
-            K_max_root,
-        ),
-    )
+            K_max_root).* roots.param_set.root_distribution_function.(roots.domain.root_depths).* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
     flow_out_stem =  ground_area_flux(
         z_bottom_stem,
         z_leaf,

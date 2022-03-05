@@ -282,7 +282,7 @@ Computes the volumetric water content given pressure (p).
 Currently this is using appropriate vG parameters for loamy type soil.
 """
 function theta_to_p(theta::FT) where {FT}
-    α = FT(5.0) # inverse meters
+    α = FT(0.01) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
     ρg = FT(9800) # Pa/m
@@ -298,7 +298,7 @@ Computes the pressure (p)  given the volumetric water content (theta).
 Currently this is using appropriate vG parameters for loamy type soil.
 """
 function p_to_theta(p::FT) where {FT}
-    α = FT(5.0) # inverse meters
+    α = FT(0.01) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
     ρg = FT(9800) # Pa/m
@@ -401,7 +401,8 @@ function ground_area_flux_out_roots(
             a_root,
             b_root,
             K_max_root,
-        ) .* model.param_set.root_distribution_function.(model.domain.root_depths))
+        ) .* model.param_set.root_distribution_function.(model.domain.root_depths)
+    .* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1]))
 end
 
 """
