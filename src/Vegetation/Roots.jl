@@ -82,7 +82,9 @@ export RootsModel,
     RootsParameters,
     PrescribedSoilPressure,
     PrescribedTranspiration,
-    AbstractRootExtraction
+    AbstractRootExtraction,
+    vc_integral,
+    vc_integral_approx
 
 """
     AbstractVegetationModel{FT} <: AbstractModel{FT}

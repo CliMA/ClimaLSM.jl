@@ -1,7 +1,7 @@
 using Test
 using UnPack
 using NLsolve
-using OrdinaryDiffEq: ODEProblem, solve, Euler
+using OrdinaryDiffEq: ODEProblem, solve, SSPRK33
 using DifferentialEquations
 using ClimaCore
 if !("." in LOAD_PATH) # for ease of include
@@ -20,27 +20,41 @@ saved_values = SavedValues(FT, ClimaCore.Fields.FieldVector)
 
 const a_root = FT(13192)
 const a_stem = FT(515.5605)
-const b_root = FT(2.1079)
-const b_stem = FT(0.9631)
-const size_reservoir_leaf_moles = FT(16766.2790)
-const size_reservoir_stem_moles = FT(11000.8837)
-const K_max_root_moles = FT(12.9216)
-const K_max_stem_moles = FT(3.4415)
-const z_leaf = FT(12) # height of leaf
+const b_root = FT(2.1079/1e6) # Inverse Pa
+const b_stem = FT(0.9631/1e6) # Inverse Pa
+const h_leaf = FT(0.01) #10mm, guess
+const h_stem = FT(0.5)
+const K_max_stem = FT(3.75e-9)
+const K_max_root = FT(1.48e-8)
+const SAI = FT(0.1)
+const RAI = FT(0.1)
+const LAI = FT(0.3)
 # currently hardcoded to match the soil coordinates. this has to
 # be fixed eventually.
 const z_root_depths = -Array(1:1:20.0) ./ 20.0 * 3.0 .+ 0.15 / 2.0
 const z_bottom_stem = FT(0.0)
+const z_leaf = FT(0.5) # height of leaf
+
 roots_domain = RootDomain{FT}(z_root_depths, [z_bottom_stem, z_leaf])
+
+function root_distribution(z::T) where {T}
+    return  T(1.0/0.25)*exp(z/T(0.25))
+end
+
+
 roots_ps = Roots.RootsParameters{FT}(
     a_root,
     b_root,
     a_stem,
     b_stem,
-    size_reservoir_stem_moles,
-    size_reservoir_leaf_moles,
-    K_max_root_moles,
-    K_max_stem_moles,
+    h_stem,
+    h_leaf,
+    K_max_root,
+    K_max_stem,
+    LAI,
+    RAI,
+    SAI,
+    root_distribution # exponential root distribution
 )
 
 zmin = FT(-3.0)
@@ -83,18 +97,16 @@ end
 init_soil!(Y, coords.soil, land.soil.param_set)
 
 ## soil is at total ψ+z = -3.0 #m
-## Want ρgΨ_plant = ρg(-3) - ρg z_plant & convert to MPa
+## Want ρgΨ_plant = ρg(-3) - ρg z_plant
 # we should standardize the units! and not ahve to convert every time.
 # convert parameters once up front and then not each RHS
-p_stem_ini = (-3.0 - z_bottom_stem) * 9.8 * 1000.0 / 1000000.0
-p_leaf_ini = (-3.0 - z_leaf) * 9.8 * 1000.0 / 1000000.0
+p_stem_ini = -28665.0
+p_leaf_ini = 0.0
 
 theta_stem_0 = p_to_theta(p_stem_ini)
 theta_leaf_0 = p_to_theta(p_leaf_ini)
-y1_0 = FT(theta_stem_0 * size_reservoir_stem_moles)
-y2_0 = FT(theta_leaf_0 * size_reservoir_leaf_moles)
-y0 = [y1_0, y2_0]
-Y.vegetation.rwc .= y0
+y0 = FT.([theta_stem_0, theta_leaf_0])
+Y.vegetation.theta .= y0
 
 ode! = make_ode_function(land)
 t0 = FT(0);

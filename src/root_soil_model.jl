@@ -67,8 +67,7 @@ function RootSoilModel{FT}(;
 
     ##These should always be set by the constructor.
     sources = (RootExtraction{FT}(),)
-    Δz = ######
-    root_extraction = PrognosticSoilPressure{FT}(Δz)
+    root_extraction = PrognosticSoilPressure{FT}()
 
     soil = soil_model_type(;
         boundary_conditions = boundary_fluxes,
@@ -109,7 +108,7 @@ function initialize_interactions(#Do we want defaults, for land::AbstractLandMod
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
 
     soil_coords = land.soil.coordinates
-    return (root_extraction = similar(soil_coords),)
+    return (root_extraction_source = similar(soil_coords), net_root_extraction_flux = zero(FT))
 end
 
 """
@@ -130,15 +129,16 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
         @unpack a_root, b_root, K_max_root, =
             land.vegetation.param_set
         gf = ground_area_flux.(
-            model.domain.root_depths,
-            model.domain.compartment_heights[1],
-            (land.soil.coordinates+p.soil.ψ)*FT(9800),
+            land.soil.coordinates,# we have to use coordinates here rather than root depth array to avoid broadcast error? 
+            land.vegetation.domain.compartment_heights[1],
+             p.soil.ψ.* FT(9800), # Pa: ρg * meters
             Roots.theta_to_p(Y.vegetation.theta[1]),
             a_root,
             b_root,
             K_max_root,
-        ) .* land.vegetation.param_set.root_distribution_function.(land.vegetation.domain.root_depths)
-        @. p.root_extraction = gf ./  land.vegetation.root_extraction.Δz .* land.vegetation.params.RAI
+        ) .* land.vegetation.param_set.root_distribution_function.(land.soil.coordinates) # here too
+        @. p.root_extraction_source =  -gf * land.vegetation.param_set.RAI
+        p.net_root_extraction_flux = sum(gf)
     end
     return update_aux!
 end
@@ -157,9 +157,7 @@ This is paired with the source term `RootExtraction`, which returns
 the flow of water between roots and soil in units of 1/sec, 
 rather than moles/sec, as needed by the soil model.
 """
-struct PrognosticSoilPressure{FT} <: Roots.AbstractRootExtraction{FT}
-    Δz::FT
-end
+struct PrognosticSoilPressure{FT} <: Roots.AbstractRootExtraction{FT} end
 
 """
     Roots.flow_out_roots(
@@ -185,7 +183,7 @@ function Roots.ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-        return sum(p.root_extraction ./ model.params.RAI .* re.Δz^2.0)
+        return p.net_root_extraction_flux
 end
 
 """
@@ -209,5 +207,5 @@ soil model; this method returns the water loss or gain due
 to roots when a plant hydraulic prognostic model is included.
 """
 function Soil.source(src::RootExtraction{FT}, Y, p) where {FT}
-    return p.root_extraction
+    return p.root_extraction_source
 end
