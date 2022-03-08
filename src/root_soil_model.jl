@@ -108,7 +108,7 @@ function initialize_interactions(#Do we want defaults, for land::AbstractLandMod
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
 
     soil_coords = land.soil.coordinates
-    return (root_extraction_source = similar(soil_coords), net_root_extraction_flux = zero(FT))
+    return (root_extraction_source = similar(soil_coords),)
 end
 
 """
@@ -129,16 +129,17 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
         @unpack a_root, b_root, K_max_root, =
             land.vegetation.param_set
         gf = ground_area_flux.(
-            land.soil.coordinates,# we have to use coordinates here rather than root depth array to avoid broadcast error? 
+            # we have to use coordinates here rather than root depth array to avoid broadcast error? 
+            land.soil.coordinates,
             land.vegetation.domain.compartment_heights[1],
-             p.soil.ψ.* FT(9800), # Pa: ρg * meters
-            Roots.theta_to_p(Y.vegetation.theta[1]),
+            p.soil.ψ.* FT(9800), # Pa: ρg * meters
+            Roots.θ_to_p(Y.vegetation.θ[1]),
             a_root,
             b_root,
             K_max_root,
-        ) .* land.vegetation.param_set.root_distribution_function.(land.soil.coordinates) # here too
-        @. p.root_extraction_source =  -gf * land.vegetation.param_set.RAI
-        p.net_root_extraction_flux = sum(gf)
+             land.vegetation.param_set.RAI,
+        ) .* land.vegetation.param_set.root_distribution_function.(land.soil.coordinates)
+        @. p.root_extraction_source =  gf
     end
     return update_aux!
 end
@@ -183,7 +184,7 @@ function Roots.ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-        return p.net_root_extraction_flux
+        return sum(p.root_extraction_source) # computes an integral 
 end
 
 """
@@ -207,5 +208,6 @@ soil model; this method returns the water loss or gain due
 to roots when a plant hydraulic prognostic model is included.
 """
 function Soil.source(src::RootExtraction{FT}, Y, p) where {FT}
-    return p.root_extraction_source
+    return -FT(1.0) .* p.root_extraction_source
+    # if flow is negative, towards soil -> soil water increases, add in sign here.
 end

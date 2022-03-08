@@ -6,6 +6,7 @@ import ClimaCore: Fields
 include("SharedUtilities/Domains.jl")
 using .Domains
 include("SharedUtilities/models.jl")
+export  make_interactions_update_aux
 
 
 """
@@ -69,10 +70,12 @@ function make_update_aux(land::AbstractLandModel)
     update_aux_function_list =
         map(x -> make_update_aux(getproperty(land, x)), components)
     function update_aux!(p, Y, t)
-        interactions_update_aux!(p, Y, t)
         for f! in update_aux_function_list
             f!(p, Y, t)
         end
+        interactions_update_aux!(p, Y, t) # doing this second because it needs p.soil.ψ!!
+        # What if some p need other p??
+        
     end
     return update_aux!
 end

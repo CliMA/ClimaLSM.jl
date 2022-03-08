@@ -77,14 +77,12 @@ export RootsModel,
     AbstractVegetationModel,
     ground_area_flux,
     ground_area_flux_out_roots,
-    theta_to_p,
-    p_to_theta,
+    θ_to_p,
+    p_to_θ,
     RootsParameters,
     PrescribedSoilPressure,
     PrescribedTranspiration,
-    AbstractRootExtraction,
-    vc_integral,
-    vc_integral_approx
+    AbstractRootExtraction
 
 """
     AbstractVegetationModel{FT} <: AbstractModel{FT}
@@ -197,7 +195,7 @@ end
 A function which returns the names of the prognostic 
 variables of the `RootsModel`.
 """
-prognostic_vars(model::RootsModel) = (:theta,)
+prognostic_vars(model::RootsModel) = (:θ,)
 
 """
     function ground_area_flux(
@@ -208,12 +206,13 @@ prognostic_vars(model::RootsModel) = (:theta,)
         a::FT,
         b::FT,
         Kmax::FT,
+        AI::FT
     ) where {FT}
 
 Computes the ground_area_flux of water (volume of water/ground area/second)  given the height and pressures
 at two points. Here, `a`, `b, and `Kmax` are parameters
 which parameterize the hydraulic conductance of the pathway along which
-the ground_area_flux occurs.
+the ground_area_flux occurs. `AI` is the area index relating conducting area to ground area.
 """
 function ground_area_flux(
     z1::FT,
@@ -223,10 +222,11 @@ function ground_area_flux(
     a::FT,
     b::FT,
     Kmax::FT,
+    AI::FT
 )::FT where {FT}
-    u1, u2, A, B, ground_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
-    ground_area_flux = vc_integral(u1, u2, A, B, ground_area_flux_approx)
-    return ground_area_flux
+    u1, u2, A, B, cond_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
+    cond_area_flux = vc_integral(u1, u2, A, B, cond_area_flux_approx)
+    return AI*cond_area_flux
 end
 
 """
@@ -261,51 +261,53 @@ function vc_integral_approx(
     num2 = log(u2 + FT(1))
     c = Kmax * (a + FT(1)) / a
     d = ρg * (z2 - z1)
-    ground_area_flux_approx = -c / b * (num2 - num1) * (p2 - p1 + d) / (p2 - p1) # this is NaN if p2 = p1
-    A = c * d + ground_area_flux_approx
-    B = -c * ground_area_flux_approx / (b * A)
-    return u1, u2, A, B, ground_area_flux_approx
+    cond_area_flux_approx = -c / b * (num2 - num1) * (p2 - p1 + d) / (p2 - p1) # this is NaN if p2 = p1
+    A = c * d + cond_area_flux_approx
+    B = -c * cond_area_flux_approx / (b * A)
+    return u1, u2, A, B, cond_area_flux_approx
 end
 
 """
-    vc_integral(u1::FT, u2::FT, A::FT, B::FT, ground_area_flux_approx::FT) where {FT}
+    vc_integral(u1::FT, u2::FT, A::FT, B::FT, cond_area_flux_approx::FT) where {FT}
 
-Computes the vc integral given the approximate ground_area_flux.
+Computes the vc integral given the approximate cond_area_flux.
 """
-function vc_integral(u1::FT, u2::FT, A::FT, B::FT, ground_area_flux_approx::FT) where {FT}
-    ground_area_flux = B * log((u2 * A + ground_area_flux_approx) / (u1 * A + ground_area_flux_approx))
-    return ground_area_flux
+function vc_integral(u1::FT, u2::FT, A::FT, B::FT, cond_area_flux_approx::FT) where {FT}
+    cond_area_flux = B * log((u2 * A + cond_area_flux_approx) / (u1 * A + cond_area_flux_approx))
+    return cond_area_flux
 end
 
 """
-    theta_to_p(theta::FT) where {FT}
+    θ_to_p(θ::FT) where {FT}
 
 Computes the volumetric water content given pressure (p).
 Currently this is using appropriate vG parameters for loamy type soil.
 """
-function theta_to_p(theta::FT) where {FT}
+function θ_to_p(θ::FT) where {FT}
+    θ = min(θ, FT(1.0))
+    θ = max(eps(FT), θ)
     α = FT(0.01) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
     ρg = FT(9800) # Pa/m
-    p = -((theta^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
+    p = -((θ^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
     return p
 end
 
 
 """
-    p_to_theta(p::FT) where {FT}
+    p_to_θ(p::FT) where {FT}
 
-Computes the pressure (p)  given the volumetric water content (theta).
+Computes the pressure (p)  given the volumetric water content (θ).
 Currently this is using appropriate vG parameters for loamy type soil.
 """
-function p_to_theta(p::FT) where {FT}
+function p_to_θ(p::FT) where {FT}
     α = FT(0.01) # inverse meters
     n = FT(2.0)
     m = FT(0.5)
     ρg = FT(9800) # Pa/m
-    theta = ((-α * (p / ρg))^n + FT(1.0))^(-m)
-    return theta
+    θ = ((-α * (p / ρg))^n + FT(1.0))^(-m)
+    return θ
 end
 
 
@@ -328,11 +330,13 @@ function make_rhs(model::RootsModel{FT}) where {FT}
 
         z_stem, z_leaf = model.domain.compartment_heights
 
-        p_stem = theta_to_p(Y.vegetation.theta[1])
-        p_leaf = theta_to_p(Y.vegetation.theta[2])
+        p_stem = θ_to_p(Y.vegetation.θ[1])
+        p_leaf = θ_to_p(Y.vegetation.θ[2])
 
+        # Includes RAI factor
         ground_area_flux_in_stem = ground_area_flux_out_roots(model.root_extraction, model, Y, p, t)
 
+        # Includes SAI factor
         ground_area_flux_out_stem = ground_area_flux(
             z_stem,
             z_leaf,
@@ -341,10 +345,11 @@ function make_rhs(model::RootsModel{FT}) where {FT}
             a_stem,
             b_stem,
             K_max_stem,
+            SAI,
         )
 
-        dY.vegetation.theta[1] = FT(1.0)/h_stem*(ground_area_flux_in_stem*RAI/SAI - ground_area_flux_out_stem)
-        dY.vegetation.theta[2] = FT(1.0)/h_leaf*(ground_area_flux_out_stem*SAI/LAI - transpiration(model.transpiration, t))
+        dY.vegetation.θ[1] = FT(1.0)/h_stem/SAI*(ground_area_flux_in_stem - ground_area_flux_out_stem)
+        dY.vegetation.θ[2] = FT(1.0)/h_leaf/LAI*(ground_area_flux_out_stem - ground_area_transpiration(model, model.transpiration, t))
     end
     return rhs!
 end
@@ -382,7 +387,7 @@ A method which computes the ground_area_flux between the soil and the stem, via 
 in the case of a standalone root model with prescribed soil pressure
 at the root tips.
 
-This assumes that the stem compartment is the first element of `Y.roots.theta`.
+This assumes that the stem compartment is the first element of `Y.roots.θ`.
 """
 function ground_area_flux_out_roots(
     re::PrescribedSoilPressure{FT},
@@ -391,9 +396,9 @@ function ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    @unpack a_root, b_root, K_max_root, =
+    @unpack a_root, b_root, K_max_root, RAI =
         model.param_set
-    p_stem = theta_to_p(Y.vegetation.theta[1])
+    p_stem = θ_to_p(Y.vegetation.θ[1])
     return sum(
         ground_area_flux.(
             model.domain.root_depths,
@@ -403,12 +408,13 @@ function ground_area_flux_out_roots(
             a_root,
             b_root,
             K_max_root,
+            RAI
         ) .* model.param_set.root_distribution_function.(model.domain.root_depths)
     .* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1]))
 end
 
 """
-    transpiration(
+    ground_area_transpiration(model::RootsModel{FT},
         transpiration::PrescribedTranspiration{FT},
         t::FT,
     )::FT where {FT}
@@ -417,11 +423,11 @@ A method which computes the transpiration in volume of water/ground area/second 
 and the atmosphere,
 in the case of a standalone root model with prescribed transpiration rate.
 """
-function transpiration(
+function ground_area_transpiration(model::RootsModel{FT},
     transpiration::PrescribedTranspiration{FT},
     t::FT,
 )::FT where {FT}
-    return transpiration.T(t)
+    return transpiration.T(t)* model.param_set.LAI
 end
 
 end

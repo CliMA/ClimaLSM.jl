@@ -95,24 +95,27 @@ function init_soil!(Ysoil, z, params)
     Ysoil.soil.ϑ_l .= hydrostatic_profile.(z, Ref(params))
 end
 init_soil!(Y, coords.soil, land.soil.param_set)
-
 ## soil is at total ψ+z = -3.0 #m
 ## Want ρgΨ_plant = ρg(-3) - ρg z_plant
 # we should standardize the units! and not ahve to convert every time.
 # convert parameters once up front and then not each RHS
-p_stem_ini = -28665.0
-p_leaf_ini = 0.0
+p_stem_ini = -29400.0
+p_leaf_ini = -34300.0
 
-theta_stem_0 = p_to_theta(p_stem_ini)
-theta_leaf_0 = p_to_theta(p_leaf_ini)
-y0 = FT.([theta_stem_0, theta_leaf_0])
-Y.vegetation.theta .= y0
+θ_stem_0 = Roots.p_to_θ(p_stem_ini)
+θ_leaf_0 = Roots.p_to_θ(p_leaf_ini)
+y0 = FT.([θ_stem_0, θ_leaf_0])
+Y.vegetation.θ .= y0
 
 ode! = make_ode_function(land)
 t0 = FT(0);
-tf = FT(2)
+tf = FT(1200)
 dt = FT(1);
+update_aux! = make_update_aux(land)
+update_aux!(p,Y,t0)
+
 cb = SavingCallback((u, t, integrator) -> integrator.p, saved_values)
 prob = ODEProblem(ode!, Y, (t0, tf), p);
+integrator = init(prob, Euler(); dt = dt)
 sol = solve(prob, Euler(), dt = dt, callback = cb);
 #Currently just testing to make sure it runs, but need to have a better test suite.

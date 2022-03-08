@@ -73,39 +73,46 @@ roots = Roots.RootsModel{FT}(;
 # Set system to equilibrium state by setting LHS of both ODEs to 0
 
 
-function f!(F, Y)
+function f!(F, P)
     T0 = 1e-5
-    flow_in_stem = sum(
-        ground_area_flux.(
-            z_root_depths,
-            z_bottom_stem,
-            p_soil0,
-            Y[1],
-            a_root,
-            b_root,
-            K_max_root).* roots.param_set.root_distribution_function.(roots.domain.root_depths).* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
+    flow_in_stem =
+        sum(
+            ground_area_flux.(
+                roots.domain.root_depths,
+                roots.domain.compartment_heights[1],
+                p_soil0,
+                P[1],
+                a_root,
+                b_root,
+                K_max_root,
+                RAI,
+            ) .* roots.param_set.root_distribution_function.(roots.domain.root_depths)
+            .* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
+    
     flow_out_stem = ground_area_flux(
         z_bottom_stem,
         z_leaf,
-        Y[1],
-        Y[2],
+        P[1],
+        P[2],
         a_stem,
         b_stem,
         K_max_stem,
+        SAI,
     )
-    F[1] = (flow_in_stem*RAI/LAI - T0)
-    F[2] = (flow_out_stem*SAI/LAI - T0)
+    F[1] = (flow_in_stem - flow_out_stem)
+    F[2] = (flow_out_stem - T0*LAI)
 end
 
 soln = nlsolve(f!, [-1e6, -0.9e6], ftol = 1e-10)
 p_stem_ini = soln.zero[1]
 p_leaf_ini = soln.zero[2]
 
-theta_stem_ini = p_to_theta(p_stem_ini)
-theta_leaf_ini = p_to_theta(p_leaf_ini)
-y0 = FT.([theta_stem_ini, theta_leaf_ini])
+θ_stem_ini = p_to_θ(p_stem_ini)
+θ_leaf_ini = p_to_θ(p_leaf_ini)
+y0 = FT.([θ_stem_ini, θ_leaf_ini])
+
 Y, p, coords = initialize(roots)
-Y.vegetation.theta .= y0
+Y.vegetation.θ .= y0
 
 root_ode! = make_ode_function(roots)
 
@@ -114,41 +121,49 @@ tf = FT(1200)
 dt = FT(1);
 
 prob = ODEProblem(root_ode!, Y, (t0, tf), p);
+#integrator = init(prob, Euler(); dt = dt)
 sol = solve(prob, Euler(), dt = dt);
 
 dY = similar(Y)
 root_ode!(dY, Y, p, 0.0)
-@test sqrt(mean(dY.vegetation.theta .^ 2.0)) < 1e-8 # starts in equilibrium
+@test sqrt(mean(dY.vegetation.θ .^ 2.0)) < 1e-8 # starts in equilibrium
 
 
 y_1 = reduce(hcat, sol.u)[1, :]
 y_2 = reduce(hcat, sol.u)[2, :]
-p_stem = theta_to_p.(y_1)
-p_leaf = theta_to_p.(y_2)
+p_stem = θ_to_p.(y_1)
+p_leaf = θ_to_p.(y_2)
 
-function f2!(F, Y)
+function f2!(F, P)
     p_soilf = p_soil0
     Tf = 1e-5* 3.0
-  flow_in_stem = sum(
-        ground_area_flux.(
-            z_root_depths,
-            z_bottom_stem,
-            p_soilf,
-            Y[1],
-            a_root,
-            b_root,
-            K_max_root).* roots.param_set.root_distribution_function.(roots.domain.root_depths).* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
-    flow_out_stem =  ground_area_flux(
+    flow_in_stem =
+        sum(
+            ground_area_flux.(
+                roots.domain.root_depths,
+                roots.domain.compartment_heights[1],
+                p_soilf,
+                P[1],
+                a_root,
+                b_root,
+                K_max_root,
+                RAI,
+            ) .* roots.param_set.root_distribution_function.(roots.domain.root_depths)
+            .* (vcat(roots.domain.root_depths,[0.0])[2:end] - vcat(roots.domain.root_depths,[0.0])[1:end-1]))
+    
+    flow_out_stem = ground_area_flux(
         z_bottom_stem,
         z_leaf,
-        Y[1],
-        Y[2],
+        P[1],
+        P[2],
         a_stem,
         b_stem,
         K_max_stem,
+        SAI,
     )
-    F[1] = flow_in_stem*RAI/SAI - flow_out_stem
-    F[2] = flow_out_stem*SAI/LAI - Tf
+    F[1] = (flow_in_stem - flow_out_stem)
+    F[2] = (flow_out_stem - Tf*LAI)
+
 end
 
 
@@ -156,5 +171,5 @@ end
 soln = nlsolve(f2!, [p_leaf[end], p_stem[end]]; ftol = 1e-12)
 p_stem_f = soln.zero[1]
 p_leaf_f = soln.zero[2]
-@test abs(p_stem_f - p_stem[end]) < 1e-5
-@test abs(p_leaf_f - p_leaf[end]) < 1e-5
+@test abs(p_stem_f - p_stem[end]) < 1e-7
+@test abs(p_leaf_f - p_leaf[end]) < 1e-7
