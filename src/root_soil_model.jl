@@ -51,19 +51,21 @@ forward in time, including boundary conditions, source terms, and interaction
 terms.
 """
 function RootSoilModel{FT}(;
-    soil_model_type::Type{SM},
-    soil_args::NamedTuple = (;),
-    vegetation_model_type::Type{VM},
-    vegetation_args::NamedTuple = (;),
-) where {
-    FT,
-    SM <: Soil.AbstractSoilModel{FT},
-    VM <: Roots.AbstractVegetationModel{FT},
-}
-
+                           land_args::NamedTuple = (;),
+                           soil_model_type::Type{SM},
+                           soil_args::NamedTuple = (;),
+                           vegetation_model_type::Type{VM},
+                           vegetation_args::NamedTuple = (;),
+                           ) where {
+                               FT,
+                               SM <: Soil.AbstractSoilModel{FT},
+                               VM <: Roots.AbstractVegetationModel{FT},
+                           }
+    
     #These may be passed in, or set, depending on use scenario
-    boundary_fluxes = FluxBC{FT}(FT(0.0), FT(0.0))
-    transpiration = PrescribedTranspiration{FT}((t::FT) -> FT(0.0))
+    @unpack precipitation, transpiration = land_args
+    boundary_fluxes = FluxBC{FT}(precipitation,(t) ->  FT(0.0))
+    T = PrescribedTranspiration{FT}(transpiration)
 
     ##These should always be set by the constructor.
     sources = (RootExtraction{FT}(),)
@@ -76,7 +78,7 @@ function RootSoilModel{FT}(;
     )
     vegetation = vegetation_model_type(;
         root_extraction = root_extraction,
-        transpiration = transpiration,
+        transpiration = T,
         vegetation_args...,
     )
     args = (soil, vegetation)

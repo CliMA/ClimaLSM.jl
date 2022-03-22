@@ -5,6 +5,8 @@ using UnPack
 using NLsolve
 using OrdinaryDiffEq: ODEProblem, solve, Euler
 using ClimaCore
+using DelimitedFiles
+using Dierckx
 
 if !("." in LOAD_PATH) # for ease of include
     push!(LOAD_PATH, ".")
@@ -13,6 +15,17 @@ using ClimaLSM
 using ClimaLSM.Domains: Column, RootDomain
 using ClimaLSM.Soil
 using ClimaLSM.Roots
+
+
+precip = readdlm("/Users/katherinedeck/Desktop/ozark_site/p_data_2019.csv",',')
+et = readdlm("/Users/katherinedeck/Desktop/ozark_site/et_data_2019.csv",',')
+range = [2223:1:3057] # in t
+
+
+et_spline = Spline1D(et[2223:3057,1], et[2223:3057,2])
+p_spline = Spline1D(precip[:,1], precip[:,2])
+t = precip[:,1]
+
 
 
 FT = Float64

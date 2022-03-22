@@ -7,12 +7,23 @@ using ClimaCore
 if !("." in LOAD_PATH) # for ease of include
     push!(LOAD_PATH, ".")
 end
+using DelimitedFiles
+using Dierckx
+
 
 using ClimaLSM
 using ClimaLSM.Domains: Column, RootDomain
 using ClimaLSM.Soil
 using ClimaLSM.Roots
 
+precip = readdlm("/Users/katherinedeck/Desktop/ozark_site/p_data_2019.csv",',')
+et = readdlm("/Users/katherinedeck/Desktop/ozark_site/et_data_2019.csv",',')
+et_spline = Spline1D(et[224:1054,1], et[224:1054,2])
+p_spline = Spline1D(precip[2223:3057,1], precip[2223:3057,2])
+t = precip[2223:3057,1]
+
+precip_function(t::ft) where {ft} = p_spine(t)
+transpiration_function(t::ft) where {ft} = et_spine(t)
 
 
 FT = Float64
@@ -72,12 +83,15 @@ soil_ps = Soil.RichardsParameters{FT}(ν, vg_α, vg_n, vg_m, Ksat, S_s, θ_r);
 
 soil_args = (domain = soil_domain, param_set = soil_ps)
 root_args = (domain = roots_domain, param_set = roots_ps)
+land_args = (precipitation = precip_function, transpiration = transpiration_function)
+
 land = RootSoilModel{FT}(;
-    soil_model_type = Soil.RichardsModel{FT},
-    soil_args = soil_args,
-    vegetation_model_type = Roots.RootsModel{FT},
-    vegetation_args = root_args,
-)
+                         land_args = land_args,
+                         soil_model_type = Soil.RichardsModel{FT},
+                         soil_args = soil_args,
+                         vegetation_model_type = Roots.RootsModel{FT},
+                         vegetation_args = root_args,
+                         )
 Y, p, coords = initialize(land)
 # specify ICs
 function init_soil!(Ysoil, z, params)
