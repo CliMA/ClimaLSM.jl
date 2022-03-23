@@ -224,10 +224,26 @@ function ground_area_flux(
     Kmax::FT,
     AI::FT
 )::FT where {FT}
+    # rewrite to be new definition
+    return AI*cond_area_flux
+end
+
+#=
+function ground_area_flux(
+    z1::FT,
+    z2::FT,
+    p1::FT,
+    p2::FT,
+    a::FT,
+    b::FT,
+    Kmax::FT,
+    AI::FT
+)::FT where {FT}
     u1, u2, A, B, cond_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
     cond_area_flux = vc_integral(u1, u2, A, B, cond_area_flux_approx)
     return AI*cond_area_flux
 end
+=#
 
 """
     vc_integral_approx(
@@ -281,14 +297,13 @@ end
     θ_to_p(θ::FT) where {FT}
 
 Computes the volumetric water content given pressure (p).
-Currently this is using appropriate vG parameters for loamy type soil.
 """
 function θ_to_p(θ::FT) where {FT}
     θ = min(θ, FT(1.0))
     θ = max(eps(FT), θ)
-    α = FT(0.01) # inverse meters
-    n = FT(2.0)
-    m = FT(0.5)
+    α = FT(0.00166) # inverse meters
+    n = FT(3.0)
+    m = FT(1-1/n)
     ρg = FT(9800) # Pa/m
     p = -((θ^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
     return p
@@ -299,12 +314,11 @@ end
     p_to_θ(p::FT) where {FT}
 
 Computes the pressure (p)  given the volumetric water content (θ).
-Currently this is using appropriate vG parameters for loamy type soil.
 """
 function p_to_θ(p::FT) where {FT}
-    α = FT(0.01) # inverse meters
-    n = FT(2.0)
-    m = FT(0.5)
+    α = FT(0.00166) # inverse meters
+    n = FT(3.0)
+    m = FT(1-1/n)
     ρg = FT(9800) # Pa/m
     θ = ((-α * (p / ρg))^n + FT(1.0))^(-m)
     return θ

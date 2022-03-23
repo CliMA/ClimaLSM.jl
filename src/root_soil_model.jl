@@ -64,7 +64,7 @@ function RootSoilModel{FT}(;
     
     #These may be passed in, or set, depending on use scenario
     @unpack precipitation, transpiration = land_args
-    boundary_fluxes = FluxBC{FT}(precipitation,(t) ->  FT(0.0))
+    boundary_fluxes = FluxBC{FT}(precipitation,0.0)
     T = PrescribedTranspiration{FT}(transpiration)
 
     ##These should always be set by the constructor.
