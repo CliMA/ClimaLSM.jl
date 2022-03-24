@@ -224,7 +224,12 @@ function ground_area_flux(
     Kmax::FT,
     AI::FT
 )::FT where {FT}
-    # rewrite to be new definition
+    ρg = FT(9800) # Pa/m
+    u1 = a * exp(b * p1)
+    u2 = a * exp(b * p2)
+    num1 = log(u1 + FT(1))
+    num2 = log(u2 + FT(1))
+    cond_area_flux = 1.0/(z2-z1)*Kmax*(a+1.0)/a*(num2-num1)/b - ρg*Kmax*(a+1.0)*exp(b*p1)/(1+a*exp(b*p1))
     return AI*cond_area_flux
 end
 
