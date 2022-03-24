@@ -129,21 +129,21 @@ A struct for holding parameters of the Root Model. Eventually to be used with Cl
 $(DocStringExtensions.FIELDS)
 """
 struct RootsParameters{FT <: AbstractFloat}
-    "controls the shape and steepness of conductance vs. pressure curve, for roots: unitless"
+    "controls the shape and steepness of conductivity vs. pressure curve, for roots: unitless"
     a_root::FT
-    "controls the steepness of the relative conductance vs. pressure curve, for roots: inverse Pa"
+    "controls the steepness of the relative conductivity vs. pressure curve, for roots: inverse Pa"
     b_root::FT
-    "controls the shape and steepness of relative conductance vs. pressure curve, for stems: unitless"
+    "controls the shape and steepness of relative conductivity vs. pressure curve, for stems: unitless"
     a_stem::FT
-    "controls the steepness of the conductance vs. pressure curve, for stems: inverse Pa"
+    "controls the steepness of the conductivity vs. pressure curve, for stems: inverse Pa"
     b_stem::FT
     "height of stem (m)"
     h_stem::FT
     "thickness of the leaves (m)"
     h_leaf::FT
-    "maximum water conductance in roots (m^3/s/Pa/m^2 conducting area)"
+    "maximum water conductivity in roots (m^3*m/s/Pa/m^2 conducting area)"
     K_max_root::FT
-    "maximum water conductance in stems (m^3/s/Pa/m^2 conducting area)"
+    "maximum water conductivity in stems (m^3*m/s/Pa/m^2 conducting area)"
     K_max_stem::FT
     "Leaf area index: surface area of leaves/area of ground"
     LAI::FT
@@ -229,7 +229,8 @@ function ground_area_flux(
     u2 = a * exp(b * p2)
     num1 = log(u1 + FT(1))
     num2 = log(u2 + FT(1))
-    cond_area_flux = 1.0/(z2-z1)*Kmax*(a+1.0)/a*(num2-num1)/b - ρg*Kmax*(a+1.0)*exp(b*p1)/(1+a*exp(b*p1))
+    # units of Kmax*dP/dz = m^3*m/m^2/s/Pa *Pa/m = m^3/m^2/s 
+    cond_area_flux = -Kmax*(a+1.0)*(1.0/((z2-z1)*a*b)*(num2-num1) + ρg*exp(b*p1)/(1+a*exp(b*p1)))
     return AI*cond_area_flux
 end
 

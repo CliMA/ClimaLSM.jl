@@ -38,7 +38,9 @@ const h_leaf = FT(0.01) #10mm, guess
 const h_stem = FT(18.5)# height of trunk, from Yujie's paper
 
 
-Kmax =  7e-11 #m^3/m^2/s/Pa relative to BASAL area
+Kmax =  7e-11*20.0 #m^3*m/m^2/s/Pa relative to BASAL area # conductance
+# multiply by height to get conductivity
+
 const K_max_stem = FT(Kmax/4)# ratio of 2:1:1 for roots:stem:leaves
 const K_max_root = FT(Kmax/2)
 
@@ -119,8 +121,8 @@ init_soil!(Y, coords.soil, land.soil.param_set)
 ## Want ρgΨ_plant = ρg(-2) - ρg z_plant
 # we should standardize the units! and not ahve to convert every time.
 # convert parameters once up front and then not each RHS
-p_stem_ini = -1e6
-p_leaf_ini = -1.1e6
+p_stem_ini = -6e6
+p_leaf_ini = -6.1e6
 
 θ_stem_0 = Roots.p_to_θ(p_stem_ini)
 θ_leaf_0 = Roots.p_to_θ(p_leaf_ini)
@@ -139,3 +141,8 @@ prob = ODEProblem(ode!, Y, (t0, tf), p);
 #integrator = init(prob, Euler(); dt = dt)
 sol = solve(prob, Midpoint(), dt = dt, callback = cb);
 #Currently just testing to make sure it runs, but need to have a better test suite.
+
+p_soil = [parent(sv.saveval[k].soil.ψ .+ coords.soil) .* 9800 for k in 1:1:length(sol.t)]
+
+p_stem = [(Roots.θ_to_p.(sol.u[k].vegetation.θ[1]) .+ 0* 9800) for k in 1:1:length(sol.t)]
+p_leaf = [(Roots.θ_to_p.(sol.u[k].vegetation.θ[2]) .+ 18.5.* 9800) for k in 1:1:length(sol.t)]
