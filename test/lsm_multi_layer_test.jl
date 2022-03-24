@@ -1,7 +1,7 @@
 using Test
 using UnPack
 using NLsolve
-using OrdinaryDiffEq: ODEProblem, solve, Euler
+using OrdinaryDiffEq: ODEProblem, solve, Euler, Midpoint
 using DifferentialEquations
 using ClimaCore
 if !("." in LOAD_PATH) # for ease of include
@@ -41,13 +41,13 @@ const h_stem = FT(18.5)# height of trunk, from Yujie's paper
 Kmax =  7e-11*20.0 #m^3*m/m^2/s/Pa relative to BASAL area # conductance
 # multiply by height to get conductivity
 
-const K_max_stem = FT(Kmax/4)# ratio of 2:1:1 for roots:stem:leaves
-const K_max_root = FT(Kmax/2)
+const K_max_stem = FT(Kmax)# ratio of 2:1:1 for roots:stem:leaves
+const K_max_root = FT(Kmax)
 
 const SAI = FT(0.00242) # Basal area per ground area
 const LAI = FT(4.2) # from Yujie's paper
 const f_root_to_shoot = FT(1.0/5.0) # guess
-const RAI = (SAI+LAI)*f_root_to_shoot # following CLM
+const RAI = SAI*f_root_to_shoot # following CLM
 # currently hardcoded to match the soil coordinates. this has to
 # be fixed eventually.
 const z_root_depths = -Array(1:1:10.0) ./ 10.0 * 2.0 .+ 0.2 / 2.0# OK
@@ -57,7 +57,13 @@ const z_leaf = h_stem
 roots_domain = RootDomain{FT}(z_root_depths, [z_bottom_stem, z_leaf])
 # 0.95 is from CLM
 function root_distribution(z::T) where {T}
-    return  T(1.0/0.95)*exp(z/T(0.95))
+    if z > -0.1
+        return 1.0
+    else
+        return 0.0
+    end
+    
+#    return  T(1.0/0.95)*exp(z/T(0.95))
 end
 
 
@@ -91,7 +97,7 @@ soil_ps = Soil.RichardsParameters{FT}(ν, vg_α, vg_n, vg_m, Ksat, S_s, θ_r);
 
 soil_args = (domain = soil_domain, param_set = soil_ps)
 root_args = (domain = roots_domain, param_set = roots_ps)
-land_args = (precipitation = 0.0, transpiration = transpiration_function)
+land_args = (precipitation = 0.0, transpiration = (t) -> 0.0)
 
 land = RootSoilModel{FT}(;
                          land_args = land_args,
@@ -121,8 +127,8 @@ init_soil!(Y, coords.soil, land.soil.param_set)
 ## Want ρgΨ_plant = ρg(-2) - ρg z_plant
 # we should standardize the units! and not ahve to convert every time.
 # convert parameters once up front and then not each RHS
-p_stem_ini = -6e6
-p_leaf_ini = -6.1e6
+p_stem_ini = -576715.0136522778
+p_leaf_ini = -1e6
 
 θ_stem_0 = Roots.p_to_θ(p_stem_ini)
 θ_leaf_0 = Roots.p_to_θ(p_leaf_ini)
@@ -131,7 +137,7 @@ Y.vegetation.θ .= y0
 
 ode! = make_ode_function(land)
 t0 = FT(0);
-tf = FT(3600*24*1.6)
+tf = FT(3600*24*3.6)
 dt = FT(100);
 #update_aux! = make_update_aux(land)
 #update_aux!(p,Y,t0)
@@ -139,10 +145,11 @@ sv = SavedValues(FT, ClimaCore.Fields.FieldVector)
 cb = SavingCallback((u, t, integrator) -> copy(integrator.p), sv)
 prob = ODEProblem(ode!, Y, (t0, tf), p);
 #integrator = init(prob, Euler(); dt = dt)
-sol = solve(prob, Midpoint(), dt = dt, callback = cb);
+sol = solve(prob, Euler(), dt = dt, callback = cb);
 #Currently just testing to make sure it runs, but need to have a better test suite.
 
 p_soil = [parent(sv.saveval[k].soil.ψ .+ coords.soil) .* 9800 for k in 1:1:length(sol.t)]
 
 p_stem = [(Roots.θ_to_p.(sol.u[k].vegetation.θ[1]) .+ 0* 9800) for k in 1:1:length(sol.t)]
 p_leaf = [(Roots.θ_to_p.(sol.u[k].vegetation.θ[2]) .+ 18.5.* 9800) for k in 1:1:length(sol.t)]
+gaf = [sum(sv.saveval[k].root_extraction_source) for k in 1:1:length(sol.t)]

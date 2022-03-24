@@ -130,7 +130,7 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
     function update_aux!(p, Y, t)
         @unpack a_root, b_root, K_max_root, =
             land.vegetation.param_set
-        gf = ground_area_flux.(
+        @. p.root_extraction_source =  ground_area_flux.(
             # we have to use coordinates here rather than root depth array to avoid broadcast error? 
             land.soil.coordinates,
             land.vegetation.domain.compartment_heights[1],
@@ -141,7 +141,6 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
             K_max_root,
              land.vegetation.param_set.RAI,
         ) .* land.vegetation.param_set.root_distribution_function.(land.soil.coordinates)
-        @. p.root_extraction_source =  gf
     end
     return update_aux!
 end
@@ -210,6 +209,6 @@ soil model; this method returns the water loss or gain due
 to roots when a plant hydraulic prognostic model is included.
 """
 function Soil.source(src::RootExtraction{FT}, Y, p) where {FT}
-    return -FT(1.0) .* p.root_extraction_source
+    return -FT(0.0) .* p.root_extraction_source
     # if flow is negative, towards soil -> soil water increases, add in sign here.
 end

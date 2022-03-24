@@ -230,7 +230,7 @@ function ground_area_flux(
     num1 = log(u1 + FT(1))
     num2 = log(u2 + FT(1))
     # units of Kmax*dP/dz = m^3*m/m^2/s/Pa *Pa/m = m^3/m^2/s 
-    cond_area_flux = -Kmax*(a+1.0)*(1.0/((z2-z1)*a*b)*(num2-num1) + ρg*exp(b*p1)/(1+a*exp(b*p1)))
+    cond_area_flux = -Kmax*(1.0+1.0/a)*((num2-num1)/(z2-z1)/b + ρg*u1/(1+u1))
     return AI*cond_area_flux
 end
 
