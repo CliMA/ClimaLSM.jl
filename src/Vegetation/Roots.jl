@@ -139,20 +139,20 @@ struct RootsParameters{FT <: AbstractFloat}
     b_stem::FT
     "height of stem (m)"
     h_stem::FT
-    "thickness of the leaves (m)"
-    h_leaf::FT
+    #"thickness of the leaves (m)"
+    #h_leaf::FT
     "maximum water conductivity in roots (m^3*m/s/Pa/m^2 conducting area)"
     K_max_root::FT
     "maximum water conductivity in stems (m^3*m/s/Pa/m^2 conducting area)"
     K_max_stem::FT
     "Leaf area index: surface area of leaves/area of ground"
-    LAI::FT
-    "root area index: cross section of roots/area of ground"
-    RAI::FT
-    "Stem area index: cross section of stem/area of ground"
-    SAI::FT
-    "Root distribution function P(z)"
-    root_distribution_function::Function
+    #LAI::FT
+    #"root area index: cross section of roots/area of ground"
+    #RAI::FT
+    #"Stem area index: cross section of stem/area of ground"
+    #SAI::FT
+    #"Root distribution function P(z)"
+    #root_distribution_function::Function
 end
 
 """
@@ -190,6 +190,45 @@ function RootsModel{FT}(;
 end
 
 """
+    function modified_logisitic_vulnerability_curve(
+        a::FT,
+        b::FT,
+        p::FT,
+    )::FT where {FT}
+
+Computes the conductivity given parameters a, b and pressure.
+"""
+function modified_logisitic_vulnerability_curve(
+    a::FT,
+    b::FT,
+    p::FT,
+)::FT where {FT}
+    v_c = (a + 1)/a * (1 - 1/(1+a*exp(b*p)))  
+    return v_c
+end
+
+"""
+    function modified_logistic_int_k_dp
+        a::FT,
+        b::FT,
+        p::FT,
+    )::FT where {FT}
+
+Computes the integral of the modified logisitc vulnerability curve.
+"""
+function modified_logistic_int_k_dp(
+    a::FT,
+    b::FT,
+    p1::FT,
+    p2::FT,
+)::FT where {FT}
+    int_k_dp1 = (a + 1)/a * (log(a*exp(b*p1)+1))/b  
+    int_k_dp2 = (a + 1)/a * (log(a*exp(b*p2)+1))/b 
+    int_k_dp = int_k_dp2 - int_k_dp1
+    return int_k_dp
+end
+
+"""
     prognostic_vars(model::RootsModel)
 
 A function which returns the names of the prognostic 
@@ -205,8 +244,7 @@ prognostic_vars(model::RootsModel) = (:θ,)
         p2::FT,
         a::FT,
         b::FT,
-        Kmax::FT,
-        AI::FT
+        Kmax::FT
     ) where {FT}
 
 Computes the ground_area_flux of water (volume of water/ground area/second)  given the height and pressures
@@ -221,83 +259,13 @@ function ground_area_flux(
     p2::FT,
     a::FT,
     b::FT,
-    Kmax::FT,
-    AI::FT
+    K_max_root::FT
 )::FT where {FT}
-    ρg = FT(9800) # Pa/m
-    u1 = a * exp(b * p1)
-    u2 = a * exp(b * p2)
-    num1 = log(u1 + FT(1))
-    num2 = log(u2 + FT(1))
-    # units of Kmax*dP/dz = m^3*m/m^2/s/Pa *Pa/m = m^3/m^2/s 
-    cond_area_flux = -Kmax*(1.0+1.0/a)*((num2-num1)/(z2-z1)/b + ρg*u1/(1+u1))
-    return AI*cond_area_flux
-end
-
-#=
-function ground_area_flux(
-    z1::FT,
-    z2::FT,
-    p1::FT,
-    p2::FT,
-    a::FT,
-    b::FT,
-    Kmax::FT,
-    AI::FT
-)::FT where {FT}
-    u1, u2, A, B, cond_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
-    cond_area_flux = vc_integral(u1, u2, A, B, cond_area_flux_approx)
-    return AI*cond_area_flux
-end
-=#
-
-"""
-    vc_integral_approx(
-        z1::FT,
-        z2::FT,
-        p1::FT,
-        p2::FT,
-        a::FT,
-        b::FT,
-        Kmax::FT,
-    ) where {FT}
-
-Approximates the vc integral given the height and pressures
-at two points. Here, `a`, `b, and `Kmax` are parameters
-which parameterize the hydraulic conductance of the pathway along which
-the ground_area_flux occurs.
-"""
-function vc_integral_approx(
-    z1::FT,
-    z2::FT,
-    p1::FT,
-    p2::FT,
-    a::FT,
-    b::FT,
-    Kmax::FT,
-    ) where {FT}
-    ρg = FT(9800) # Pa/m
-    u1 = a * exp(b * p1)
-    u2 = a * exp(b * p2)
-    num1 = log(u1 + FT(1))
-    num2 = log(u2 + FT(1))
-    c = Kmax * (a + FT(1)) / a
-    d = ρg * (z2 - z1)
-    cond_area_flux_approx = -c / b * (num2 - num1) * (p2 - p1 + d) / (p2 - p1) # this is NaN if p2 = p1
-    A = c * d + cond_area_flux_approx
-    B = -c * cond_area_flux_approx / (b * A)
-    return u1, u2, A, B, cond_area_flux_approx
-end
-
-"""
-    vc_integral(u1::FT, u2::FT, A::FT, B::FT, cond_area_flux_approx::FT) where {FT}
-
-Computes the vc integral given the approximate cond_area_flux.
-"""
-function vc_integral(u1::FT, u2::FT, A::FT, B::FT, cond_area_flux_approx::FT) where {FT}
-    cond_area_flux = B * log((u2 * A + cond_area_flux_approx) / (u1 * A + cond_area_flux_approx))
+    ρg = FT(0.0098) # Pa/m 
+    cond_area_flux = -K_max_root*modified_logistic_int_k_dp(a,b,p1,p2) - ρg*(vulnerability_curve(a,b,p1) + vulnerability_curve(a,b,p2))/2
     return cond_area_flux
 end
+
 
 """
     θ_to_p(θ::FT) where {FT}
@@ -307,11 +275,7 @@ Computes the volumetric water content given pressure (p).
 function θ_to_p(θ::FT) where {FT}
     θ = min(θ, FT(1.0))
     θ = max(eps(FT), θ)
-    α = FT(0.00166) # inverse meters
-    n = FT(3.0)
-    m = FT(1-1/n)
-    ρg = FT(9800) # Pa/m
-    p = -((θ^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
+    p = (θ-1)*5  
     return p
 end
 
@@ -322,11 +286,7 @@ end
 Computes the pressure (p)  given the volumetric water content (θ).
 """
 function p_to_θ(p::FT) where {FT}
-    α = FT(0.00166) # inverse meters
-    n = FT(3.0)
-    m = FT(1-1/n)
-    ρg = FT(9800) # Pa/m
-    θ = ((-α * (p / ρg))^n + FT(1.0))^(-m)
+    θ = p/5+1
     return θ
 end
 
@@ -346,7 +306,7 @@ function make_rhs(model::RootsModel{FT}) where {FT}
         a_stem,
         b_stem,
         K_max_stem,
-        SAI, RAI, LAI, h_stem, h_leaf = model.param_set
+        h_stem = model.param_set
 
         z_stem, z_leaf = model.domain.compartment_heights
 
@@ -365,11 +325,10 @@ function make_rhs(model::RootsModel{FT}) where {FT}
             a_stem,
             b_stem,
             K_max_stem,
-            SAI,
         )
 
-        dY.vegetation.θ[1] = FT(1.0)/h_stem/SAI*(ground_area_flux_in_stem - ground_area_flux_out_stem)
-        dY.vegetation.θ[2] = FT(1.0)/h_leaf/LAI*(ground_area_flux_out_stem - ground_area_transpiration(model, model.transpiration, t))
+        dY.vegetation.θ[1] = ground_area_flux_in_stem - ground_area_flux_out_stem
+        dY.vegetation.θ[2] = ground_area_flux_out_stem - ground_area_transpiration(model, model.transpiration, t)
     end
     return rhs!
 end
@@ -416,7 +375,7 @@ function ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    @unpack a_root, b_root, K_max_root, RAI =
+    @unpack a_root, b_root, K_max_root =
         model.param_set
     p_stem = θ_to_p(Y.vegetation.θ[1])
     return sum(
@@ -427,11 +386,10 @@ function ground_area_flux_out_roots(
             p_stem,
             a_root,
             b_root,
-            K_max_root,
-            RAI
-        ) .* model.param_set.root_distribution_function.(model.domain.root_depths)
-    .* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1]))
-end
+            K_max_root
+        ).* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1])) 
+        #.* model.param_set.root_distribution_function.(model.domain.root_depths)
+    end
 
 """
     ground_area_transpiration(model::RootsModel{FT},
@@ -447,7 +405,7 @@ function ground_area_transpiration(model::RootsModel{FT},
     transpiration::PrescribedTranspiration{FT},
     t::FT,
 )::FT where {FT}
-    return transpiration.T(t)* model.param_set.LAI
+    return transpiration.T(t)
 end
 
 end
