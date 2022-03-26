@@ -262,7 +262,7 @@ function ground_area_flux(
     K_max_root::FT
 )::FT where {FT}
     ρg = FT(0.0098) # Pa/m 
-    cond_area_flux = -K_max_root*modified_logistic_int_k_dp(a,b,p1,p2) - ρg*(vulnerability_curve(a,b,p1) + vulnerability_curve(a,b,p2))/2
+    cond_area_flux = -K_max_root*modified_logistic_int_k_dp(a,b,p1,p2)/(z2 - z1) - K_max_root*ρg*(modified_logisitic_vulnerability_curve(a,b,p1) + modified_logisitic_vulnerability_curve(a,b,p2))/2
     return cond_area_flux
 end
 
@@ -273,8 +273,8 @@ end
 Computes the volumetric water content given pressure (p).
 """
 function θ_to_p(θ::FT) where {FT}
-    θ = min(θ, FT(1.0))
-    θ = max(eps(FT), θ)
+    #θ = min(θ, FT(1.0))
+    #θ = max(eps(FT), θ)
     p = (θ-1)*5  
     return p
 end
@@ -315,6 +315,7 @@ function make_rhs(model::RootsModel{FT}) where {FT}
 
         # Includes RAI factor
         ground_area_flux_in_stem = ground_area_flux_out_roots(model.root_extraction, model, Y, p, t)
+        @show(ground_area_flux_in_stem)
 
         # Includes SAI factor
         ground_area_flux_out_stem = ground_area_flux(
@@ -326,7 +327,7 @@ function make_rhs(model::RootsModel{FT}) where {FT}
             b_stem,
             K_max_stem,
         )
-
+        @show(ground_area_flux_out_stem)        
         dY.vegetation.θ[1] = ground_area_flux_in_stem - ground_area_flux_out_stem
         dY.vegetation.θ[2] = ground_area_flux_out_stem - ground_area_transpiration(model, model.transpiration, t)
     end
@@ -378,7 +379,10 @@ function ground_area_flux_out_roots(
     @unpack a_root, b_root, K_max_root =
         model.param_set
     p_stem = θ_to_p(Y.vegetation.θ[1])
-    return sum(
+    @show(p_stem)
+    @show(model.domain.root_depths)
+    @show(model.domain.compartment_heights[1])
+    s = sum(
         ground_area_flux.(
             model.domain.root_depths,
             model.domain.compartment_heights[1],
@@ -387,7 +391,10 @@ function ground_area_flux_out_roots(
             a_root,
             b_root,
             K_max_root
-        ).* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1])) 
+        ))
+        @show(s)
+        return s
+        #.* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1])) 
         #.* model.param_set.root_distribution_function.(model.domain.root_depths)
     end
 
