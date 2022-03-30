@@ -71,7 +71,9 @@ import ClimaLSM:
     auxiliary_vars,
     name
 export RichardsModel,
+    SoilEnergyHydrology,
     RichardsParameters,
+    HeatParameters,
     boundary_fluxes,
     FluxBC,
     RootExtraction,
@@ -164,7 +166,6 @@ function dss!(dY::ClimaCore.Fields.FieldVector, domain::HybridBox)
     end
 end
 
-
 """
    FluxBC{FT} <: AbstractSoilBoundaryConditions{FT}
 
@@ -175,6 +176,7 @@ struct FluxBC{FT} <: AbstractSoilBoundaryConditions{FT}
     top_flux_bc::FT
     bot_flux_bc::FT
 end
+
 
 """
     boundary_fluxes(bc::FluxBC, _...)

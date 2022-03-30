@@ -1,4 +1,5 @@
 include("./Vegetation/root_test.jl")
+include("./Vegetation/multi_layer_root_test.jl")
 include("./Soil/soiltest.jl")
 include("./LSM/lsm_test.jl")
 include("./domains.jl")

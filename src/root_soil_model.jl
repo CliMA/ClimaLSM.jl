@@ -44,6 +44,7 @@ forward in time, including boundary conditions, source terms, and interaction
 terms.
 """
 function RootSoilModel{FT}(;
+    land_args::NamedTuple = (;),
     soil_model_type::Type{SM},
     soil_args::NamedTuple = (;),
     vegetation_model_type::Type{VM},
@@ -55,21 +56,17 @@ function RootSoilModel{FT}(;
 }
 
     #These may be passed in, or set, depending on use scenario
-    boundary_fluxes = FluxBC{FT}(FT(0.0), FT(0.0))
-    transpiration = PrescribedTranspiration{FT}((t::FT) -> FT(0.0))
+    @unpack precipitation, transpiration = land_args
+    T = PrescribedTranspiration{FT}(transpiration)
 
     ##These should always be set by the constructor.
     sources = (RootExtraction{FT}(),)
     root_extraction = PrognosticSoilPressure{FT}()
 
-    soil = soil_model_type(;
-        boundary_conditions = boundary_fluxes,
-        sources = sources,
-        soil_args...,
-    )
+    soil = soil_model_type(; sources = sources, soil_args...)
     vegetation = vegetation_model_type(;
         root_extraction = root_extraction,
-        transpiration = transpiration,
+        transpiration = T,
         vegetation_args...,
     )
     args = (soil, vegetation)
@@ -99,7 +96,6 @@ and potentially due to the type of the component models.
 function initialize_interactions(#Do we want defaults, for land::AbstractLandModel?
     land::RootSoilModel{FT, SM, RM},
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
-
     zero_state = map(_ -> zero(FT), land.soil.coordinates)
     return (root_extraction = similar(zero_state),)
 end
@@ -119,8 +115,22 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
     land::RootSoilModel{FT, SM, RM},
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
     function update_aux!(p, Y, t)
-        @. p.root_extraction = FT(0.0)
-        ##Science goes here
+        @unpack a_root, b_root, K_max_root, = land.vegetation.param_set
+        @. p.root_extraction =
+            Roots.ground_area_flux.(
+                # we have to use coordinates here rather than root depth array to avoid broadcast error? 
+                land.soil.coordinates.z,
+                land.vegetation.domain.compartment_heights[1],
+                p.soil.ψ .* FT(9800), # Pa: ρg * meters
+                Roots.θ_to_p(Y.vegetation.θ[1]),
+                a_root,
+                b_root,
+                K_max_root,
+                land.vegetation.param_set.RAI,
+            ) .*
+            land.vegetation.param_set.root_distribution_function.(
+                land.soil.coordinates.z,
+            )
     end
     return update_aux!
 end
@@ -158,14 +168,14 @@ hydraulics are modeled prognostically.
 It is computed by summing the flow of water between
 roots and soil at each soil layer.
 """
-function Roots.flow_out_roots(
+function Roots.ground_area_flux_out_roots(
     re::PrognosticSoilPressure{FT},
     model::Roots.RootsModel{FT},
     Y::ClimaCore.Fields.FieldVector,
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    return sum(p.root_extraction)
+    return sum(p.root_extraction) # computes an integral 
 end
 
 """
@@ -197,5 +207,6 @@ function Soil.source!(
     Y::ClimaCore.Fields.FieldVector,
     p::ClimaCore.Fields.FieldVector,
 )::ClimaCore.Fields.Field where {FT}
-    return dY.soil.ϑ_l .+= p.root_extraction
+    @. dY.soil.ϑ_l += -FT(1.0) * p.root_extraction
+    # if flow is negative, towards soil -> soil water increases, add in sign here.
 end
