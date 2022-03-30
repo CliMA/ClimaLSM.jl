@@ -210,25 +210,24 @@ lwp_leaf =
 
 begin
     default(
-        titlefont = (2, "times"),
-        legendfontsize = 2,
-        guidefont = (2, :black),
-        tickfont = (2, :black),
+        titlefont = (5, "times"),
+        legendfontsize = 5,
+        guidefont = (5, :black),
+        tickfont = (5, :black),
         guide = "x",
         framestyle = :zerolines,
         yminorgrid = true,
     )
     plot1 = plot(seconds ./ 3600 ./ 24, our_year_lwp, label = "LWP (Natan)")
-    plot!(sol.t ./ 3600 ./ 24, ϕ_stem ./ 1e6, label = "ϕ stem, MPa")
-    plot!(sol.t ./ 3600 ./ 24, lwp_leaf, label = "LWP,clima, MPa")
+    #plot!(sol.t ./ 3600 ./ 24, ϕ_stem ./ 1e6, label = "ϕ stem, MPa")
+    plot!(sol.t ./ 3600 ./ 24, lwp_leaf, label = "LWP (clima) ")
+    #plot!(    sol.t ./ 3600 ./ 24,ϕ_leaf ./ 1e6        label = "ϕ leaf, MPa",)
     plot!(
-        sol.t ./ 3600 ./ 24,
-        ϕ_leaf ./ 1e6,
-        label = "ϕ leaf, MPa",
-        xlabel = "t(days since Jan 1)",
+        xlim = [0, maximum(sol.t) ./ 3600 ./ 24],
+        xlabel = "t (days since Jan 1)",
         ylabel = "ϕ(MPa)",
     )
-    plot!(xlim = [0, maximum(sol.t) ./ 3600 ./ 24])
+
 
     plot!(legend = :bottomright)
 
@@ -279,10 +278,18 @@ begin
     end
     plot_each_day(pl, 1:1:N_days)
 
-    plot3 = plot(sol.t / 3600 ./ 24, precip_function.(sol.t), label = "")
-    plot!(xlabel = "t(days)", ylabel = "Precip(m/s)")
-    plot4 = plot(sol.t / 3600 ./ 24, transpiration_function.(sol.t), label = "")
-    plot!(xlabel = "t(days)", ylabel = "ET(m/s)")
+    plot3 = plot(
+        sol.t / 3600 ./ 24,
+        precip_function.(sol.t) * 3600 * 39.37,
+        label = "",
+    )
+    plot!(xlabel = "t (days)", ylabel = "Precip(in/hr)")
+    plot4 = plot(
+        sol.t / 3600 ./ 24,
+        transpiration_function.(sol.t) * 3600 * 39.37,
+        label = "",
+    )
+    plot!(xlabel = "t (days)", ylabel = "ET(in/hr)")
     plot(plot1, plot2, plot3, plot4, layout = 4)
     savefig("./test/LSM/ozark_2005.png")
 end

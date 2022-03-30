@@ -212,6 +212,6 @@ function Soil.source!(
     Y::ClimaCore.Fields.FieldVector,
     p::ClimaCore.Fields.FieldVector,
 )::ClimaCore.Fields.Field where {FT}
-    dY.soil.ϑ_l += -FT(1.0) .* p.root_extraction_source
+    @. dY.soil.ϑ_l += -FT(1.0) * p.root_extraction_source
     # if flow is negative, towards soil -> soil water increases, add in sign here.
 end
