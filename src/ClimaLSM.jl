@@ -6,7 +6,7 @@ import ClimaCore: Fields
 include("SharedUtilities/Domains.jl")
 using .Domains
 include("SharedUtilities/models.jl")
-export  make_interactions_update_aux
+export make_interactions_update_aux
 
 
 """

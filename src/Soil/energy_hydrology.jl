@@ -1,4 +1,3 @@
-export HeatParameters, SoilEnergyHydrology
 """
     HeatParameters{FT <: AbstractFloat}
 

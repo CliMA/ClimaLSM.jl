@@ -1,4 +1,3 @@
-export RichardsParameters, RichardsModel
 """
     RichardsParameters{FT <: AbstractFloat}
 

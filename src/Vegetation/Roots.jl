@@ -247,11 +247,12 @@ function ground_area_flux(
     a::FT,
     b::FT,
     Kmax::FT,
-    AI::FT
+    AI::FT,
 )::FT where {FT}
-    u1, u2, A, B, cond_area_flux_approx = vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
+    u1, u2, A, B, cond_area_flux_approx =
+        vc_integral_approx(z1, z2, p1, p2, a, b, Kmax)
     cond_area_flux = vc_integral(u1, u2, A, B, cond_area_flux_approx)
-    return AI*cond_area_flux
+    return AI * cond_area_flux
 end
 
 
@@ -279,7 +280,7 @@ function vc_integral_approx(
     a::FT,
     b::FT,
     Kmax::FT,
-    ) where {FT}
+) where {FT}
     ρg = FT(9800) # Pa/m
     u1 = a * exp(b * p1)
     u2 = a * exp(b * p2)
@@ -298,8 +299,16 @@ end
 
 Computes the vc integral given the approximate cond_area_flux.
 """
-function vc_integral(u1::FT, u2::FT, A::FT, B::FT, cond_area_flux_approx::FT) where {FT}
-    cond_area_flux = B * log((u2 * A + cond_area_flux_approx) / (u1 * A + cond_area_flux_approx))
+function vc_integral(
+    u1::FT,
+    u2::FT,
+    A::FT,
+    B::FT,
+    cond_area_flux_approx::FT,
+) where {FT}
+    cond_area_flux =
+        B *
+        log((u2 * A + cond_area_flux_approx) / (u1 * A + cond_area_flux_approx))
     return cond_area_flux
 end
 
@@ -313,7 +322,7 @@ function θ_to_p(θ::FT) where {FT}
     θ = max(eps(FT), θ)
     α = FT(0.00166) # inverse meters
     n = FT(3.0)
-    m = FT(1-1/n)
+    m = FT(1 - 1 / n)
     ρg = FT(9800) # Pa/m
     p = -((θ^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
     return p
@@ -328,7 +337,7 @@ Computes the pressure (p)  given the volumetric water content (θ).
 function p_to_θ(p::FT) where {FT}
     α = FT(0.00166) # inverse meters
     n = FT(3.0)
-    m = FT(1-1/n)
+    m = FT(1 - 1 / n)
     ρg = FT(9800) # Pa/m
     θ = ((-α * (p / ρg))^n + FT(1.0))^(-m)
     return θ
@@ -350,7 +359,11 @@ function make_rhs(model::RootsModel{FT}) where {FT}
         a_stem,
         b_stem,
         K_max_stem,
-        SAI, RAI, LAI, h_stem, h_leaf = model.param_set
+        SAI,
+        RAI,
+        LAI,
+        h_stem,
+        h_leaf = model.param_set
 
         z_stem, z_leaf = model.domain.compartment_heights
 
@@ -358,7 +371,8 @@ function make_rhs(model::RootsModel{FT}) where {FT}
         p_leaf = θ_to_p(Y.vegetation.θ[2])
 
         # Includes RAI factor
-        ground_area_flux_in_stem = ground_area_flux_out_roots(model.root_extraction, model, Y, p, t)
+        ground_area_flux_in_stem =
+            ground_area_flux_out_roots(model.root_extraction, model, Y, p, t)
 
         # Includes SAI factor
         ground_area_flux_out_stem = ground_area_flux(
@@ -372,8 +386,14 @@ function make_rhs(model::RootsModel{FT}) where {FT}
             SAI,
         )
 
-        dY.vegetation.θ[1] = FT(1.0)/h_stem/SAI*(ground_area_flux_in_stem - ground_area_flux_out_stem)
-        dY.vegetation.θ[2] = FT(1.0)/h_leaf/LAI*(ground_area_flux_out_stem - ground_area_transpiration(model, model.transpiration, t))
+        dY.vegetation.θ[1] =
+            FT(1.0) / h_stem / SAI *
+            (ground_area_flux_in_stem - ground_area_flux_out_stem)
+        dY.vegetation.θ[2] =
+            FT(1.0) / h_leaf / LAI * (
+                ground_area_flux_out_stem -
+                ground_area_transpiration(model, model.transpiration, t)
+            )
     end
     return rhs!
 end
@@ -420,8 +440,7 @@ function ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-    @unpack a_root, b_root, K_max_root, RAI =
-        model.param_set
+    @unpack a_root, b_root, K_max_root, RAI = model.param_set
     p_stem = θ_to_p(Y.vegetation.θ[1])
     return sum(
         ground_area_flux.(
@@ -432,9 +451,14 @@ function ground_area_flux_out_roots(
             a_root,
             b_root,
             K_max_root,
-            RAI
-        ) .* model.param_set.root_distribution_function.(model.domain.root_depths)
-    .* (vcat(model.domain.root_depths,[0.0])[2:end] - vcat(model.domain.root_depths,[0.0])[1:end-1]))
+            RAI,
+        ) .*
+        model.param_set.root_distribution_function.(model.domain.root_depths) .*
+        (
+            vcat(model.domain.root_depths, [0.0])[2:end] -
+            vcat(model.domain.root_depths, [0.0])[1:(end - 1)]
+        ),
+    )
 end
 
 """
@@ -447,11 +471,12 @@ A method which computes the transpiration in volume of water/ground area/second 
 and the atmosphere,
 in the case of a standalone root model with prescribed transpiration rate.
 """
-function ground_area_transpiration(model::RootsModel{FT},
+function ground_area_transpiration(
+    model::RootsModel{FT},
     transpiration::PrescribedTranspiration{FT},
     t::FT,
 )::FT where {FT}
-    return transpiration.T(t)* model.param_set.LAI
+    return transpiration.T(t) * model.param_set.LAI
 end
 
 end

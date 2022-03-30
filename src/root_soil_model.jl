@@ -44,17 +44,17 @@ forward in time, including boundary conditions, source terms, and interaction
 terms.
 """
 function RootSoilModel{FT}(;
-                           land_args::NamedTuple = (;),
-                           soil_model_type::Type{SM},
-                           soil_args::NamedTuple = (;),
-                           vegetation_model_type::Type{VM},
-                           vegetation_args::NamedTuple = (;),
-                           ) where {
-                               FT,
-                               SM <: Soil.AbstractSoilModel{FT},
-                               VM <: Roots.AbstractVegetationModel{FT},
-                           }
-    
+    land_args::NamedTuple = (;),
+    soil_model_type::Type{SM},
+    soil_args::NamedTuple = (;),
+    vegetation_model_type::Type{VM},
+    vegetation_args::NamedTuple = (;),
+) where {
+    FT,
+    SM <: Soil.AbstractSoilModel{FT},
+    VM <: Roots.AbstractVegetationModel{FT},
+}
+
     #These may be passed in, or set, depending on use scenario
     @unpack precipitation, transpiration = land_args
     boundary_fluxes = PrecipFreeDrainage{FT}(precipitation)
@@ -120,19 +120,22 @@ function make_interactions_update_aux(#Do we want defaults, for land::AbstractLa
     land::RootSoilModel{FT, SM, RM},
 ) where {FT, SM <: Soil.RichardsModel{FT}, RM <: Roots.RootsModel{FT}}
     function update_aux!(p, Y, t)
-        @unpack a_root, b_root, K_max_root, =
-            land.vegetation.param_set
-        @. p.root_extraction_source =  Roots.ground_area_flux.(
-            # we have to use coordinates here rather than root depth array to avoid broadcast error? 
-            land.soil.coordinates.z,
-            land.vegetation.domain.compartment_heights[1],
-            p.soil.ψ.* FT(9800), # Pa: ρg * meters
-            Roots.θ_to_p(Y.vegetation.θ[1]),
-            a_root,
-            b_root,
-            K_max_root,
-             land.vegetation.param_set.RAI,
-        ) .* land.vegetation.param_set.root_distribution_function.(land.soil.coordinates.z)
+        @unpack a_root, b_root, K_max_root, = land.vegetation.param_set
+        @. p.root_extraction_source =
+            Roots.ground_area_flux.(
+                # we have to use coordinates here rather than root depth array to avoid broadcast error? 
+                land.soil.coordinates.z,
+                land.vegetation.domain.compartment_heights[1],
+                p.soil.ψ .* FT(9800), # Pa: ρg * meters
+                Roots.θ_to_p(Y.vegetation.θ[1]),
+                a_root,
+                b_root,
+                K_max_root,
+                land.vegetation.param_set.RAI,
+            ) .*
+            land.vegetation.param_set.root_distribution_function.(
+                land.soil.coordinates.z,
+            )
     end
     return update_aux!
 end
@@ -177,7 +180,7 @@ function Roots.ground_area_flux_out_roots(
     p::ClimaCore.Fields.FieldVector,
     t::FT,
 )::FT where {FT}
-        return sum(p.root_extraction_source) # computes an integral 
+    return sum(p.root_extraction_source) # computes an integral 
 end
 
 """
@@ -209,6 +212,6 @@ function Soil.source!(
     Y::ClimaCore.Fields.FieldVector,
     p::ClimaCore.Fields.FieldVector,
 )::ClimaCore.Fields.Field where {FT}
-    return -FT(1.0) .* p.root_extraction_source
+    dY.soil.ϑ_l += -FT(1.0) .* p.root_extraction_source
     # if flow is negative, towards soil -> soil water increases, add in sign here.
 end
