@@ -57,18 +57,13 @@ function RootSoilModel{FT}(;
 
     #These may be passed in, or set, depending on use scenario
     @unpack precipitation, transpiration = land_args
-    boundary_fluxes = PrecipFreeDrainage{FT}(precipitation)
     T = PrescribedTranspiration{FT}(transpiration)
 
     ##These should always be set by the constructor.
     sources = (RootExtraction{FT}(),)
     root_extraction = PrognosticSoilPressure{FT}()
 
-    soil = soil_model_type(;
-        boundary_conditions = boundary_fluxes,
-        sources = sources,
-        soil_args...,
-    )
+    soil = soil_model_type(; sources = sources, soil_args...)
     vegetation = vegetation_model_type(;
         root_extraction = root_extraction,
         transpiration = T,

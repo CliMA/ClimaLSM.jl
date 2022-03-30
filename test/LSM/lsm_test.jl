@@ -75,7 +75,11 @@ FT = Float64
     θ_r = FT(0.0)
     soil_ps = Soil.RichardsParameters{FT}(ν, vg_α, vg_n, vg_m, Ksat, S_s, θ_r)
 
-    soil_args = (domain = soil_domain, param_set = soil_ps)
+    soil_args = (
+        domain = soil_domain,
+        param_set = soil_ps,
+        boundary_conditions = FluxBC(0.0, 0.0),
+    )
     root_args = (domain = roots_domain, param_set = roots_ps)
     land_args = (precipitation = (t) -> 0.0, transpiration = (t) -> 0.0)
 
