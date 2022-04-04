@@ -4,7 +4,7 @@ if !("." in LOAD_PATH)
     push!(LOAD_PATH, ".")
 end
 using ClimaLSM
-using ClimaLSM.Domains: Column, RootDomain, HybridBox, Plane, Point
+using ClimaLSM.Domains: Column, RootDomain, HybridBox, Plane, Point, LSMMultiColumnDomain
 using ClimaLSM.Domains: coordinates
 
 FT = Float64
@@ -60,4 +60,16 @@ end
     point = Point(zlim[1])
     @test point.z_sfc == zlim[1]
     @test coordinates(point) == [zlim[1]]
+end
+
+@testset "LSMMultiColumnDomain" begin
+    domain = LSMMultiColumnDomain(;xlim = xlim, ylim = ylim, zlim = zlim,   
+    nelements = nelements, npolynomial = 2)
+    plane = domain.surface
+    box = domain.subsurface
+
+    @test typeof(box) == HybridBox{FT}
+    @test typeof(plane) == Plane{FT}
+    @test parent(coordinates(plane)) == parent(coordinates(domain).surface)
+    @test parent(coordinates(box)) == parent(coordinates(domain).subsurface)
 end

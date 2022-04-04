@@ -6,8 +6,7 @@ using DocStringExtensions
 import ClimaCore: Fields
 
 import ClimaLSM: AbstractModel, make_rhs, prognostic_vars, name
-using ClimaLSM.Domains
-import ClimaLSM.Domains: coordinates
+using ClimaLSM.Domains: AbstractDomain
 export PondModel, PrescribedRunoff, surface_runoff
 
 abstract type AbstractSurfaceWaterModel{FT} <: AbstractModel{FT} end
@@ -24,12 +23,13 @@ In integrated LSM mode, the infiltration into the soil will be computed
 via a different method, and also be applied as a flux boundary condition
 for the soil model. 
 """
-struct PondModel{FT, R} <: AbstractSurfaceWaterModel{FT}
+struct PondModel{FT, D, R} <: AbstractSurfaceWaterModel{FT}
+    domain::D
     runoff::R
 end
 
-function PondModel{FT}(; runoff::AbstractSurfaceRunoff{FT}) where {FT}
-    return PondModel{FT, typeof(runoff)}(runoff)
+function PondModel{FT}(; domain::AbstractDomain{FT}, runoff::AbstractSurfaceRunoff{FT}) where {FT}
+    return PondModel{FT, typeof(domain), typeof(runoff)}(domain, runoff)
 end
 
 
@@ -49,7 +49,6 @@ end
 
 ClimaLSM.prognostic_vars(model::PondModel) = (:η,)
 ClimaLSM.name(::AbstractSurfaceWaterModel) = :surface_water
-ClimaLSM.Domains.coordinates(model::PondModel{FT}) where {FT} = FT.([0.0])
 
 function ClimaLSM.make_rhs(model::PondModel)
     function rhs!(dY, Y, p, t)

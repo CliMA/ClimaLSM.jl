@@ -298,8 +298,41 @@ function coordinates(
     return cc
 end
 
+
+struct LSMMultiColumnDomain{FT, SS, SF} <: AbstractDomain{FT}
+    subsurface::SS
+    surface::SF
+end
+
+function LSMMultiColumnDomain(;
+    xlim::Tuple{FT,FT},
+    ylim::Tuple{FT,FT},
+    zlim::Tuple{FT,FT},
+    nelements::Tuple{Int,Int,Int},
+    npolynomial::Int,
+    periodic = (true, true),
+) where {FT}
+    @assert xlim[1] < xlim[2]
+    @assert ylim[1] < ylim[2]
+    @assert zlim[1] < zlim[2]
+    @assert periodic == (true, true)
+    subsurface_domain =  HybridBox{FT}(xlim, ylim, zlim, nelements, npolynomial, periodic)
+    surface_domain = Plane{FT}(xlim, ylim, nelements[1:2], periodic, npolynomial)
+    return LSMMultiColumnDomain{FT, typeof.([subsurface_domain, surface_domain])...}(subsurface_domain, surface_domain)
+end
+
+function coordinates(domain::LSMMultiColumnDomain{FT}) where {FT}
+    return (
+        # Opting for making two distinct instances of the horizontal space
+        # can return to later as needed
+        subsurface = coordinates(domain.subsurface),
+        surface = coordinates(domain.surface),
+    )
+end
+
 export AbstractDomain, AbstractVegetationDomain
 export Column, Plane, HybridBox, RootDomain, Point
+export LSMMultiColumnDomain
 export coordinates
 
 end

@@ -85,7 +85,16 @@ Initializes the interaction auxiliary variable `p.soil_infiltration`.
 function initialize_interactions(
     land::LandHydrology{FT, SM, SW},
 ) where {FT, SM <: Soil.RichardsModel{FT}, SW <: Pond.PondModel{FT}}
+    # Do we do coordinats(surface) and compute it another time (new instance of space)
+    # or store it? Then we get (x,y)
+    # Do we do similar(soil coordinates) and not have to store or compute anything again,
+    # but then get (x,y,z = z of some center layer)?
+    # Which is better for broadcasting later on?
 
+    # If the surface domain is a hybrid box, is that just easier?
+    # Also, if the surface has topography, how else would we carry along z info?
+    # it would only live in the soil model as is
+    # That may also be more consistent with what we do with Point{FT}(z_sfc)
     surface_coords = coordinates(land.surface_water)#In non-column case, would this be level(soil_coords)?
     return (soil_infiltration = similar(surface_coords),)
 end
@@ -142,6 +151,8 @@ function infiltration_capacity(
             Ref(ClimaCore.Operators.Interior()),
             N,
         )
+        #approx -k∇(psi +z) by setting face value and looking up center value
+        #K(top center)* ( psi(face) - psi(center))/dz
     return @. (K * (max(0.0, Y.surface_water.η) - ψ + Δz) / Δz)
 end
 
