@@ -21,7 +21,7 @@ using ClimaLSM.Roots
 precip_θ_T =
     readdlm("/Users/katherinedeck/Desktop/ozark_site/p_data_2005.csv", ',')
 et = readdlm("/Users/katherinedeck/Desktop/ozark_site/et_data_2005.csv", ',')
-et_spline = Spline1D(et[:, 1], max.(0.0, et[:, 2]))
+#et_spline = Spline1D(et[:, 1], max.(0.0, et[:, 2]))
 p_spline = Spline1D(precip_θ_T[:, 1], -precip_θ_T[:, 2])
 t = precip_θ_T[:, 1]
 
@@ -29,18 +29,25 @@ t = precip_θ_T[:, 1]
 
 ## Natan's data
 data = readdlm(
-    "/Users/katherinedeck/Downloads/Re _plant_and_soil_hydraulics_benchmark/holtzman_clima_output.csv",
+    "/Users/katherinedeck/Downloads/holtzman_clima_output_april1.csv",
     ',',
 )
 natan_et = data[2:end, 15] * 18 / 1e3 / 1e3 # convert to m^3/m^2/s
-lwp = data[2:end, 20]
+swc_column = data[2:end, 20]
+swc_surface = data[2:end, 19]
+swc_obs_surface = data[2:end, 12]
+lwp = data[2:end,18]
 dates = data[2:end, 1]
 data = nothing #frees memory
 dates_julia = tryparse.(DateTime, dates)
 our_year = dates_julia[Dates.year.(dates_julia) .== 2005]
 seconds = Dates.value.(our_year .- our_year[1]) ./ 1000
+our_year_swc_column = FT.(swc_column[Dates.year.(dates_julia) .== 2005])
+our_year_swc_surface = FT.(swc_surface[Dates.year.(dates_julia) .== 2005])
+our_year_swc_obs_surface = FT.(swc_obs_surface[Dates.year.(dates_julia) .== 2005])
 our_year_lwp = FT.(lwp[Dates.year.(dates_julia) .== 2005])
-our_year_et = FT.(natan_et[Dates.year.(dates_julia) .== 2005])## unclear how this matches ET from site.
+our_year_et = FT.(natan_et[Dates.year.(dates_julia) .== 2005])
+et_spline = Spline1D(seconds, our_year_et)
 
 
 
@@ -58,7 +65,7 @@ const a_root = FT(0.1)
 const a_stem = a_root
 const b_root = FT(0.17 / 1e6) # Inverse Pa
 const b_stem = b_root
-const h_leaf = FT(0.01) #10mm, guess
+const h_leaf = FT(0.005) #5mm, guess
 const h_stem = FT(18.5)# height of trunk, from Yujie's paper
 Kmax = 1.8e-10 #m^3/m^2/s/Pa, from Natan (10 mol/s/m^2/MPa) 
 const K_max_stem = FT(Kmax)
@@ -99,7 +106,7 @@ zmin = FT(-2.0)
 zmax = FT(0.0)
 nelements = 10
 soil_domain = Column(FT, zlim = (zmin, zmax), nelements = nelements);
-const ν = FT(0.45);
+const ν = FT(0.55);
 const Ksat = FT(4e-7) # matches Natan, m/s
 const S_s = FT(1e-3); #inverse meters, guess
 const vg_n = FT(1.5);
@@ -124,8 +131,8 @@ land = RootSoilModel{FT}(;
                          )
 Y, p, cds = initialize(land)
 ode! = make_ode_function(land)
-p_stem_ini = -0.5e6
-p_leaf_ini = -1e6
+p_stem_ini = -0.5e5
+p_leaf_ini = -1e5
 θ_stem_0 = Roots.p_to_θ(p_stem_ini)
 θ_leaf_0 = Roots.p_to_θ(p_leaf_ini)
 Y.vegetation.θ .= FT.([θ_stem_0, θ_leaf_0])
@@ -183,19 +190,11 @@ Y, p, cds = initialize(land)
 ode! = make_ode_function(land)
 
 # specify ICs from equilibrium run.
-Y.vegetation.θ .= [0.9998493853905009, 0.9989462446587591]
-ic = [
-    0.3573,
-    0.355401,
-    0.353523,
-    0.351665,
-    0.349827,
-    0.348009,
-    0.346211,
-    0.344434,
-    0.342676,
-    0.340938,
-]
+Y.vegetation.θ .=  [0.999596628794538, 0.9976596617465233]
+ic =     [0.355686, 0.354263, 0.352855, 0.351462, 0.350083, 0.348718, 0.347368, 0.346031, 0.344708, 0.343398]
+
+
+
 vals = reverse(-Array(1:1:10.0) ./ 10.0 * 2.0 .+ 0.2 / 2.0)
 
 ic_spline = Spline1D(vals, ic)
@@ -205,7 +204,7 @@ update_aux!(p, Y, 0.0)
 
 #sim
 t0 = FT(0);
-N_days = 30
+N_days = 120
 tf = FT(3600 * 24 * N_days)
 dt = FT(1);
 
@@ -214,7 +213,7 @@ daily = Array(2:(3600 * 24):(N_days * 3600 * 24))
 cb =
     SavingCallback((u, t, integrator) -> copy(integrator.p), sv; saveat = daily)
 prob = ODEProblem(ode!, Y, (t0, tf), p);
-sol = solve(prob, RK4(), dt = dt, callback = cb);
+sol = solve(prob, RK4(), dt = dt, callback = cb); # 8 seconds for 180 days
 
 
 #plots
@@ -230,22 +229,14 @@ sol = solve(prob, RK4(), dt = dt, callback = cb);
 lwp_leaf =
     [Roots.θ_to_p.(sol.u[k].vegetation.θ[2]) ./ 1e6 for k in 1:1:length(sol.t)];
 
-begin
-    default(
-        titlefont = (5, "times"),
-        legendfontsize = 5,
-        guidefont = (5, :black),
-        tickfont = (5, :black),
-        guide = "x",
-        framestyle = :zerolines,
-        yminorgrid = true,
-    )
+
     plot1 = plot(seconds ./ 3600 ./ 24, our_year_lwp, label = "LWP (Natan)")
     #plot!(sol.t ./ 3600 ./ 24, ϕ_stem ./ 1e6, label = "ϕ stem, MPa")
     plot!(sol.t ./ 3600 ./ 24, lwp_leaf, label = "LWP (clima) ")
     #plot!(    sol.t ./ 3600 ./ 24,ϕ_leaf ./ 1e6        label = "ϕ leaf, MPa",)
     plot!(
         xlim = [0, maximum(sol.t) ./ 3600 ./ 24],
+        ylim = [-3,0],
         xlabel = "t (days since Jan 1)",
         ylabel = "ϕ(MPa)",
     )
@@ -259,42 +250,48 @@ begin
         label = "10cm",
         xtickfontsize = 5,
         ytickfontsize = 5,
+        xlim = [0, maximum(sol.t) ./ 3600 ./ 24],
     )
     plot!(
         sol.t ./ 3600 ./ 24,
         [parent(sol.u[k].soil.ϑ_l)[end - 1] for k in 1:1:length(sol.t)],
         label = "30cm",
     )
-    plot!(
-        sol.t ./ 3600 ./ 24,
-        [parent(sol.u[k].soil.ϑ_l)[end - 2] for k in 1:1:length(sol.t)],
-        label = "50cm",
-    )
-    plot!(
-        sol.t ./ 3600 ./ 24,
-        [parent(sol.u[k].soil.ϑ_l)[end - 3] for k in 1:1:length(sol.t)],
-        label = "70cm",
-    )
+#    plot!(
+#        sol.t ./ 3600 ./ 24,
+#        [parent(sol.u[k].soil.ϑ_l)[end - 2] for k in 1:1:length(sol.t)],
+#        label = "50cm",
+#    )
+ #   plot!(
+ #       sol.t ./ 3600 ./ 24,
+ #       [parent(sol.u[k].soil.ϑ_l)[end - 3] for k in 1:1:length(sol.t)],
+ #       label = "70cm",
+ #   )
     plot!(
         sol.t ./ 3600 ./ 24,
         [mean(parent(sol.u[k].soil.ϑ_l)) for k in 1:1:length(sol.t)],
         label = "mean",
     )
+    plot!(seconds ./ 3600 ./24, our_year_swc_surface, label = "Natan, surface")
+    plot!(seconds ./ 3600 ./24, our_year_swc_obs_surface, label = "obs, surface")
+    plot!(seconds ./ 3600 ./24, our_year_swc_column, label = "Natan, mean")
     plot!(legend = :topright, xlabel = "t (days)", ylabel = "θ soil")
-    plot!(ylim = [0.35, 0.5])
+    plot!(ylim = [0.0, 0.6])
 
     plot3 = plot(
         sol.t / 3600 ./ 24,
         precip_function.(sol.t) * 3600 * 39.37,
+        xlim = [0, maximum(sol.t) ./ 3600 ./ 24],
         label = "",
     )
     plot!(xlabel = "t (days)", ylabel = "Precip(in/hr)")
     plot4 = plot(
         sol.t / 3600 ./ 24,
         transpiration_function.(sol.t) * 3600 * 39.37,
+        xlim = [0, maximum(sol.t) ./ 3600 ./ 24],
         label = "",
     )
     plot!(xlabel = "t (days)", ylabel = "ET(in/hr)")
-    plot(plot1, plot2, plot3, plot4, layout = 4)
+    plot(plot1, plot2)#, plot3, plot4, layout = 4)
     savefig("./test/LSM/ozark_2005.png")
-end
+

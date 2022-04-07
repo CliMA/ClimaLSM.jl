@@ -321,7 +321,7 @@ function θ_to_p(θ::FT) where {FT}
     θ = min(θ, FT(1.0))
     θ = max(eps(FT), θ)
     α = FT(0.004) # inverse meters
-    n = FT(3.0)
+    n = FT(3)
     m = FT(1 - 1 / n)
     ρg = FT(9800) # Pa/m
     p = -((θ^(-FT(1) / m) - FT(1)) * α^(-n))^(FT(1) / n) * ρg
@@ -336,7 +336,7 @@ Computes the pressure (p)  given the volumetric water content (θ).
 """
 function p_to_θ(p::FT) where {FT}
     α = FT(0.004) # inverse meters
-    n = FT(3.0)
+    n = FT(3)
     m = FT(1 - 1 / n)
     ρg = FT(9800) # Pa/m
     θ = ((-α * (p / ρg))^n + FT(1.0))^(-m)
