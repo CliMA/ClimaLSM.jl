@@ -18,6 +18,8 @@ using ClimaLSM.Domains: Column, RootDomain
 using ClimaLSM.Soil
 using ClimaLSM.Roots
 
+FT = Float64
+
 precip_θ_T =
     readdlm("/Users/katherinedeck/Desktop/ozark_site/p_data_2005.csv", ',')
 et = readdlm("/Users/katherinedeck/Desktop/ozark_site/et_data_2005.csv", ',')
@@ -204,7 +206,7 @@ update_aux!(p, Y, 0.0)
 
 #sim
 t0 = FT(0);
-N_days = 120
+N_days = 60
 tf = FT(3600 * 24 * N_days)
 dt = FT(1);
 
@@ -276,7 +278,7 @@ lwp_leaf =
     plot!(seconds ./ 3600 ./24, our_year_swc_obs_surface, label = "obs, surface")
     plot!(seconds ./ 3600 ./24, our_year_swc_column, label = "Natan, mean")
     plot!(legend = :topright, xlabel = "t (days)", ylabel = "θ soil")
-    plot!(ylim = [0.0, 0.6])
+    plot!(ylim = [0.3, 0.6])
 
     plot3 = plot(
         sol.t / 3600 ./ 24,
