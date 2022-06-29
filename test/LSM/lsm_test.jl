@@ -1,5 +1,5 @@
 using Test
-using DifferentialEquations
+using DiffEqCallbacks
 using UnPack
 using OrdinaryDiffEq: ODEProblem, solve, Euler
 using ClimaCore

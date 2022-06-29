@@ -1,7 +1,7 @@
 using Test
 using UnPack
 using Statistics
-using DifferentialEquations
+using DiffEqCallbacks
 using ClimaCore
 import CLIMAParameters as CP
 

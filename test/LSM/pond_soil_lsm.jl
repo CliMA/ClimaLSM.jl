@@ -1,6 +1,6 @@
 using Test
 using UnPack
-using DifferentialEquations
+using DiffEqCallbacks
 using OrdinaryDiffEq: ODEProblem, solve, Euler
 using ClimaCore
 

@@ -1,7 +1,8 @@
 [deps]
 CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
 ClimaCore = "d414da3d-4745-48bb-8d80-42e94e092884"
-DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
+DiffEqCallbacks = "459566f4-90b8-5000-8ac3-15dfb0a30def"
 NLsolve = "2774e3e8-f4cf-5e23-947b-6d7e65073b56"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -10,3 +11,12 @@ SurfaceFluxes = "49b00bb7-8bd4-4f2b-b78c-51cd0450215f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
+
+[compat]
+CLIMAParameters = "0.4, 0.5, 0.6"
+ClimaCore = "0.10"
+StaticArrays = "1.5"
+SurfaceFluxes = "0.4"
+Thermodynamics = "0.9"
+UnPack = "1"
+julia = "1.7"
