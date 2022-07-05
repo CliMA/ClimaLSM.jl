@@ -1,5 +1,6 @@
 using Test
 using UnPack
+using Statistics
 using ClimaCore
 import CLIMAParameters as CP
 

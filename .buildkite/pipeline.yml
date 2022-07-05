@@ -1,0 +1,80 @@
+env:
+  JULIA_VERSION: "1.7.0"
+  OPENMPI_VERSION: "4.0.4"
+  CUDA_VERSION: "11.2"
+  OPENBLAS_NUM_THREADS: 1
+  BUILDKITE_COMMIT: "${BUILDKITE_COMMIT}"
+  BUILDKITE_BRANCH: "${BUILDKITE_BRANCH}"
+
+agents:
+  config: cpu
+  queue: central
+  slurm_ntasks: 1
+
+steps:
+  - label: "init environment :computer:"
+    key: "init_cpu_env"
+    command:
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile()'"
+      - "julia --project -e 'using Pkg; Pkg.status()'"
+
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile()'"
+      - "julia --project=test -e 'using Pkg; Pkg.status()'"
+
+  - wait
+
+  - group: "Unit tests"
+    steps:
+
+      # - label: "Unit tests"
+      #   command: "julia --color=yes --project=test test/runtests.jl"
+      #   artifact_paths: "test/*"
+
+      - label: "bucket_test"
+        command: "julia --color=yes --project=test test/Bucket/bucket_test.jl"
+        artifact_paths: "bucket_test/"
+
+      - label: "root_test"
+        command: "julia --color=yes --project=test test/Vegetation/root_test.jl"
+        artifact_paths: "root_test/"
+
+      - label: "lsm_test"
+        command: "julia --color=yes --project=test test/LSM/lsm_test.jl"
+        artifact_paths: "lsm_test/"
+
+      - label: "domains"
+        command: "julia --color=yes --project=test test/domains.jl"
+        artifact_paths: "domains/"
+
+      - label: "variable_types"
+        command: "julia --color=yes --project=test test/variable_types.jl"
+        artifact_paths: "variable_types/"
+
+      - label: "pond_test"
+        command: "julia --color=yes --project=test test/SurfaceWater/pond_test.jl"
+        artifact_paths: "pond_test/"
+
+      - label: "pond_soil_lsm"
+        command: "julia --color=yes --project=test test/LSM/pond_soil_lsm.jl"
+        artifact_paths: "pond_soil_lsm/"
+
+      - label: "soil_test_3d"
+        command: "julia --color=yes --project=test test/Soil/soil_test_3d.jl"
+        artifact_paths: "soil_test_3d/"
+        agents:
+          slurm_mem_per_cpu: 8G
+
+      - label: "soiltest"
+        command: "julia --color=yes --project=test test/Soil/soiltest.jl"
+        artifact_paths: "soiltest/"
+
+      - label: "soil_parameterizations"
+        command: "julia --color=yes --project=test test/Soil/soil_parameterizations.jl"
+        artifact_paths: "soil_parameterizations/"
+
+      - label: "soil_bc"
+        command: "julia --color=yes --project=test test/Soil/soil_bc.jl"
+        artifact_paths: "soil_bc/"
+
