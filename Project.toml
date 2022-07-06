@@ -4,6 +4,7 @@ authors = ["Clima Land Team"]
 version = "0.1.0"
 
 [deps]
+CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
 ClimaCore = "d414da3d-4745-48bb-8d80-42e94e092884"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
@@ -13,4 +14,12 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 
 [compat]
+CLIMAParameters = "0.4, 0.5, 0.6"
+ClimaCore = "0.10"
+DocStringExtensions = "0.8, 0.9"
+IntervalSets = "0.5, 0.6"
+StaticArrays = "1.5"
+SurfaceFluxes = "0.4"
+Thermodynamics = "0.9"
+UnPack = "1"
 julia = "1.7"

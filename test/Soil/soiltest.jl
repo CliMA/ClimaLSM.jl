@@ -1,7 +1,8 @@
 using Test
 using UnPack
 using Statistics
-using DifferentialEquations
+using DiffEqCallbacks
+using OrdinaryDiffEq: ODEProblem, solve, Euler
 using ClimaCore
 import CLIMAParameters as CP
 

@@ -1,7 +1,8 @@
 using Test
 
 using OrdinaryDiffEq: ODEProblem, solve, RK4, Euler
-using DifferentialEquations
+using DiffEqCallbacks
+using DiffEqBase
 using ClimaCore
 import CLIMAParameters as CP
 
@@ -50,7 +51,7 @@ bucket_parameters = BucketModelParameters(
 )
 
 # Model domain
-domain = Plane(;
+bucket_domain = Plane(;
     xlim = (0.0, 1.0),
     ylim = (0.0, 1.0),
     nelements = (1, 1),
@@ -83,7 +84,7 @@ domain = Plane(;
 
     model = BucketModel(
         parameters = bucket_parameters,
-        domain = domain,
+        domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
     )
@@ -136,7 +137,7 @@ end
 
     model = BucketModel(
         parameters = bucket_parameters,
-        domain = domain,
+        domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
     )
@@ -190,7 +191,7 @@ end
 
     model = BucketModel(
         parameters = bucket_parameters,
-        domain = domain,
+        domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
     )
@@ -248,7 +249,7 @@ end
 
     model = BucketModel(
         parameters = bucket_parameters,
-        domain = domain,
+        domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
     )
