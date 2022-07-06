@@ -2,6 +2,7 @@ using Test
 using UnPack
 using Statistics
 using DiffEqCallbacks
+using OrdinaryDiffEq: ODEProblem, solve, Euler
 using ClimaCore
 import CLIMAParameters as CP
 
