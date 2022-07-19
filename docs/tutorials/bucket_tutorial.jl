@@ -219,7 +219,6 @@ model = BucketModel(
     domain = bucket_domain,
     atmosphere = bucket_atmos,
     radiation = bucket_rad,
-    snowmelt = SurfaceFluxMeltModel{FT}(3600.0),
 );
 
 # Note the holder structs for the radiation and atmosphere functions: they

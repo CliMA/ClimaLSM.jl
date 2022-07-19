@@ -82,15 +82,14 @@ bucket_domain = Plane(;
         W_f,
         z_0m,
         z_0b,
+        Δt,
         earth_param_set,
     )
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
     # Initial conditions with no moisture
     Y, p, coords = initialize(model)
@@ -150,15 +149,14 @@ end
         W_f,
         z_0m,
         z_0b,
+        Δt,
         earth_param_set,
     )
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
 
     # Initial conditions with no moisture
@@ -219,15 +217,14 @@ end
         W_f,
         z_0m,
         z_0b,
+        Δt,
         earth_param_set,
     )
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
 
     # Initial conditions with no moisture
@@ -291,15 +288,14 @@ end
         W_f,
         z_0m,
         z_0b,
+        Δt,
         earth_param_set,
     )
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
 
     # Initial conditions with no moisture

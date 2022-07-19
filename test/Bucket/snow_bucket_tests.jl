@@ -14,8 +14,7 @@ using ClimaLSM.Bucket:
     PrescribedAtmosphere,
     PrescribedRadiativeFluxes,
     BulkAlbedo,
-    partition_surface_fluxes,
-    SurfaceFluxMeltModel
+    partition_surface_fluxes
 using ClimaLSM.Domains: coordinates, Plane
 using ClimaLSM: initialize, make_update_aux, make_ode_function
 
@@ -71,7 +70,6 @@ bucket_domain = Plane(;
         ρ_sfc,
     )
     Δt = FT(1.0)
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
     bucket_parameters = BucketModelParameters(
         d_soil,
         T0,
@@ -82,6 +80,7 @@ bucket_domain = Plane(;
         W_f,
         z_0m,
         z_0b,
+        Δt,
         earth_param_set,
     )
     model = BucketModel(
@@ -89,7 +88,6 @@ bucket_domain = Plane(;
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
     # Initial conditions with no moisture
     Y, p, coords = initialize(model)
@@ -138,9 +136,7 @@ end
         h_atmos,
         ρ_sfc,
     )
-    Δt = FT(3.0)
-    snowmelt = SurfaceFluxMeltModel{FT}(Δt)
-
+    Δt = FT(1.0)
     bucket_parameters = BucketModelParameters(
         d_soil,
         T0,
@@ -151,6 +147,7 @@ end
         W_f,
         z_0m,
         z_0b,
+        3.0 * Δt,
         earth_param_set,
     )
     model = BucketModel(
@@ -158,7 +155,6 @@ end
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
     # Initial conditions with no moisture
     Y, p, coords = initialize(model)
@@ -216,8 +212,6 @@ end
     )
     Δt = FT(1.0)
     τc = FT(10.0)
-    snowmelt = SurfaceFluxMeltModel{FT}(τc)
-
     bucket_parameters = BucketModelParameters(
         d_soil,
         T0,
@@ -228,6 +222,7 @@ end
         W_f,
         z_0m,
         z_0b,
+        τc,
         earth_param_set,
     )
     model = BucketModel(
@@ -235,7 +230,6 @@ end
         domain = bucket_domain,
         atmosphere = bucket_atmos,
         radiation = bucket_rad,
-        snowmelt = snowmelt,
     )
 
     # run for some time
@@ -292,14 +286,18 @@ end
     _T_freeze = LSMP.T_freeze(model.parameters.earth_param_set)
     Isnow = -_LH_f0 * σS
     dIsnowdt = (Isnow[2:end] - Isnow[1:(end - 1)]) / Δt
+    snow_cover_fraction(σS) = σS > eps(FT) ? FT(1.0) : FT(0.0)
+    scf = snow_cover_fraction.(σS)
     partitioned_fluxes =
         partition_surface_fluxes.(
-            Ref(snowmelt),
             σS,
             T_sfc,
+            model.parameters.τc,
+            scf,
             E,
             F_sfc,
-            Ref(model.parameters),
+            _LH_f0,
+            _T_freeze,
         )
     F_melt =
         [partitioned_fluxes[k].F_melt for k in 1:length(partitioned_fluxes)]

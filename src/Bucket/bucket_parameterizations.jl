@@ -29,72 +29,34 @@ end
 
 """
     partition_surface_fluxes(
-        snowmelt::SurfaceFluxMeltModel{FT},
         σS::FT,
         T_sfc::FT,
+        τc::FT,
+        snow_cover_fraction::FT,
         E::FT,
         F_sfc::FT,
-        params::P
-    ) where{FT,P}
+        _LH_f0::FT,
+        _T_freeze::FT,
+    ) where{FT}
 
 Partitions the surface fluxes in a flux for melting snow, a flux for sublimating snow,
-and a ground heat flux, according to a model which uses the given surface flux to melt snow
-when the temperature is above freezing.
+and a ground heat flux. 
 
 All fluxes are positive if they are in the direction from land towards
 the atmosphere.
 """
 function partition_surface_fluxes(
-    snowmelt::SurfaceFluxMeltModel{FT},
     σS::FT,
     T_sfc::FT,
+    τc::FT,
+    snow_cover_fraction::FT,
     E::FT,
     F_sfc::FT,
-    params::P,
-) where {FT, P}
-    _T_freeze = LSMP.T_freeze(params.earth_param_set)
-    _LH_f0 = LSMP.LH_f0(params.earth_param_set)
-    snow_cover_fraction = heaviside.(σS)
-    τc = snowmelt.τ
+    _LH_f0::FT,
+    _T_freeze::FT,
+) where {FT}
     τ = melt_timescale(σS, _LH_f0, τc, F_sfc, E) # Eqn 23
     F_melt = -σS * _LH_f0 * heaviside(T_sfc - _T_freeze) / τ # Eqn 22. Negative by definition (into the snow/land).
-    F_into_snow = -_LH_f0 * E * snow_cover_fraction + F_melt # F_melt is already multiplied by σS. Eqn 20
-    G = (F_sfc - F_into_snow) # Eqn 20
-    return (; F_melt = F_melt, F_into_snow = F_into_snow, G = G)
-end
-
-
-"""
-    partition_surface_fluxes(
-        snowmelt::SnowTemperatureMeltModel{FT},
-        σS::FT,
-        T_sfc::FT,
-        E::FT,
-        F_sfc::FT,
-        params::P
-    ) where{FT,P}
-
-Partitions the surface fluxes in a flux for melting snow, a flux for sublimating snow,
-and a ground heat flux, according to a model which melts an amount of snow
-determined by how far above freezing the temperature is, over a prescribed time.
-
-All fluxes are positive if they are in the direction from land towards
-the atmosphere.
-"""
-function partition_surface_fluxes(
-    snowmelt::SnowTemperatureMeltModel{FT},
-    σS::FT,
-    T_sfc::FT,
-    E::FT,
-    F_sfc::FT,
-    params::P,
-) where {FT, P}
-    _T_freeze = LSMP.T_freeze(params.earth_param_set)
-    (; ρc_soil, d_soil) = params
-    τc = snowmelt.τ
-    F_melt =
-        -ρc_soil * d_soil * (T_sfc - _T_freeze) * heaviside(T_sfc - _T_freeze) /
-        τ # Eqn 21. Negative by definition (into the snow/land).
     F_into_snow = -_LH_f0 * E * snow_cover_fraction + F_melt # F_melt is already multiplied by σS. Eqn 20
     G = (F_sfc - F_into_snow) # Eqn 20
     return (; F_melt = F_melt, F_into_snow = F_into_snow, G = G)
