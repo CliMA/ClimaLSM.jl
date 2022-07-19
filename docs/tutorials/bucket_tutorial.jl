@@ -145,6 +145,8 @@ z_0b = FT(1e-3);
 # Thermal parameters of soil
 κ_soil = FT(0.0);
 ρc_soil = FT(2e6);
+Δt = FT(1000.0);
+
 bucket_parameters = BucketModelParameters(
     d_soil,
     T_base,
@@ -155,6 +157,7 @@ bucket_parameters = BucketModelParameters(
     W_f,
     z_0m,
     z_0b,
+    Δt,
     earth_param_set,
 );
 
@@ -252,7 +255,6 @@ ode_function! = make_ode_function(model);
 t0 = FT(0.0);
 tf = FT(3 * 86400);
 prob = ODEProblem(ode_function!, Y, (t0, tf), p);
-Δt = FT(1000.0);
 # We need a callback to get and store the auxiliary fields, as they
 # are not stored by default.
 saved_values = SavedValues(FT, ClimaCore.Fields.FieldVector);
