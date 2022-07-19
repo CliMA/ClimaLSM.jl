@@ -28,12 +28,12 @@ steps:
   - group: "Unit tests"
     steps:
 
-      # - label: "Unit tests"
-      #   command: "julia --color=yes --project=test test/runtests.jl"
-      #   artifact_paths: "test/*"
+      - label: "soil_bucket_tests"
+        command: "julia --color=yes --project=test test/Bucket/soil_bucket_tests.jl"
+        artifact_paths: "bucket_test/"
 
-      - label: "bucket_test"
-        command: "julia --color=yes --project=test test/Bucket/bucket_test.jl"
+      - label: "snow_bucket_tests"
+        command: "julia --color=yes --project=test test/Bucket/snow_bucket_tests.jl"
         artifact_paths: "bucket_test/"
 
       - label: "root_test"

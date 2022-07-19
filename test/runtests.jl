@@ -1,4 +1,5 @@
-include("./Bucket/bucket_test.jl")
+include("./Bucket/soil_bucket_tests.jl")
+include("./Bucket/snow_bucket_tests.jl")
 include("./Vegetation/root_test.jl")
 include("./LSM/lsm_test.jl")
 include("./domains.jl")

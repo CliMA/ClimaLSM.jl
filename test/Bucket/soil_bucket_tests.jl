@@ -29,7 +29,7 @@ earth_param_set = create_lsm_parameters(FT)
 α_soil = (coordinate_point) -> FT(0.2) # soil albedo, spatially constant
 α_snow = FT(0.8) # snow albedo
 albedo = BulkAlbedo{FT}(α_snow, α_soil)
-S_c = FT(0.2)
+σS_c = FT(0.2)
 W_f = FT(0.15)
 d_soil = FT(100.0) # soil depth
 T0 = FT(280.0)
@@ -37,18 +37,7 @@ z_0m = FT(1e-2)
 z_0b = FT(1e-3)
 κ_soil = FT(1.5)
 ρc_soil = FT(2e6)
-bucket_parameters = BucketModelParameters(
-    d_soil,
-    T0,
-    κ_soil,
-    ρc_soil,
-    albedo,
-    S_c,
-    W_f,
-    z_0m,
-    z_0b,
-    earth_param_set,
-)
+
 
 # Model domain
 bucket_domain = Plane(;
@@ -74,6 +63,7 @@ bucket_domain = Plane(;
     ρ_sfc = FT(1.15)
     bucket_atmos = PrescribedAtmosphere(
         precip,
+        precip,
         T_atmos,
         u_atmos,
         q_atmos,
@@ -81,7 +71,20 @@ bucket_domain = Plane(;
         h_atmos,
         ρ_sfc,
     )
-
+    Δt = FT(1.0)
+    bucket_parameters = BucketModelParameters(
+        d_soil,
+        T0,
+        κ_soil,
+        ρc_soil,
+        albedo,
+        σS_c,
+        W_f,
+        z_0m,
+        z_0b,
+        Δt,
+        earth_param_set,
+    )
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
@@ -93,7 +96,7 @@ bucket_domain = Plane(;
     Y.bucket.T_sfc .= 280.0
     Y.bucket.W .= 0.0 # no moisture
     Y.bucket.Ws .= 0.0 # no runoff
-    Y.bucket.S .= 0.0
+    Y.bucket.σS .= 0.0
 
     ode_function! = make_ode_function(model)
     dY = similar(Y)
@@ -127,6 +130,7 @@ end
     ρ_sfc = FT(1.15)
     bucket_atmos = PrescribedAtmosphere(
         precip,
+        precip,
         T_atmos,
         u_atmos,
         q_atmos,
@@ -134,7 +138,20 @@ end
         h_atmos,
         ρ_sfc,
     )
-
+    Δt = FT(1.0)
+    bucket_parameters = BucketModelParameters(
+        d_soil,
+        T0,
+        κ_soil,
+        ρc_soil,
+        albedo,
+        σS_c,
+        W_f,
+        z_0m,
+        z_0b,
+        Δt,
+        earth_param_set,
+    )
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
@@ -147,7 +164,7 @@ end
     Y.bucket.T_sfc .= 255.69458073555182
     Y.bucket.W .= 0.0 # no moisture
     Y.bucket.Ws .= 0.0 # no runoff
-    Y.bucket.S .= 0.0
+    Y.bucket.σS .= 0.0
     ode_function! = make_ode_function(model)
     dY = similar(Y)
     ode_function!(dY, Y, p, 0.0)
@@ -181,6 +198,7 @@ end
     ρ_sfc = FT(1.15)
     bucket_atmos = PrescribedAtmosphere(
         precip,
+        (t) -> eltype(t)(0.0),
         T_atmos,
         u_atmos,
         q_atmos,
@@ -188,7 +206,20 @@ end
         h_atmos,
         ρ_sfc,
     )
-
+    Δt = FT(1.0)
+    bucket_parameters = BucketModelParameters(
+        d_soil,
+        T0,
+        κ_soil,
+        ρc_soil,
+        albedo,
+        σS_c,
+        W_f,
+        z_0m,
+        z_0b,
+        Δt,
+        earth_param_set,
+    )
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
@@ -201,13 +232,12 @@ end
     Y.bucket.T_sfc .= 280.0
     Y.bucket.W .= 0.14 # no moisture
     Y.bucket.Ws .= 0.0 # no runoff
-    Y.bucket.S .= 0.0
+    Y.bucket.σS .= 0.0
     ode_function! = make_ode_function(model)
 
     t0 = 0.0
     tf = 10.0
     prob = ODEProblem(ode_function!, Y, (t0, tf), p)
-    Δt = 1.0
     integrator = init(prob, RK4(); dt = Δt, saveat = 0:Δt:tf)
     for step in 1:10
         step!(integrator, Δt, true)
@@ -239,6 +269,7 @@ end
     ρ_sfc = FT(1.15)
     bucket_atmos = PrescribedAtmosphere(
         precip,
+        (t) -> eltype(t)(0.0),
         T_atmos,
         u_atmos,
         q_atmos,
@@ -246,7 +277,20 @@ end
         h_atmos,
         ρ_sfc,
     )
-
+    Δt = FT(100.0)
+    bucket_parameters = BucketModelParameters(
+        d_soil,
+        T0,
+        κ_soil,
+        ρc_soil,
+        albedo,
+        σS_c,
+        W_f,
+        z_0m,
+        z_0b,
+        Δt,
+        earth_param_set,
+    )
     model = BucketModel(
         parameters = bucket_parameters,
         domain = bucket_domain,
@@ -259,13 +303,12 @@ end
     Y.bucket.T_sfc .= 280.0
     Y.bucket.W .= 0.149
     Y.bucket.Ws .= 0.0
-    Y.bucket.S .= 0.0
+    Y.bucket.σS .= 0.0
     ode_function! = make_ode_function(model)
 
     t0 = 0.0
     tf = 10000.0
     prob = ODEProblem(ode_function!, Y, (t0, tf), p)
-    Δt = 100.0
     # need a callback to get and store `p`
     saved_values = SavedValues(FT, ClimaCore.Fields.FieldVector)
     cb = SavingCallback(

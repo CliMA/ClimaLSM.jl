@@ -13,14 +13,9 @@ Base.@kwdef struct LSMParameters{FT, TP, SFP} <: ALSMP
     LH_v0::FT
     LH_s0::FT
     Stefan::FT
+    T_freeze::FT
     thermo_params::TP
     surf_flux_params::SFP
-    # LH_f0::FT
-    # T_freeze::FT # unused?
-    # R_d::FT # unused?
-    # cp_d::FT # unused?
-    # grav::FT # unused?
-    # cp_v::FT # unused?
 end
 
 # wrapper methods:
@@ -34,7 +29,7 @@ T_0(ps::ALSMP) = ps.T_0
 LH_v0(ps::ALSMP) = ps.LH_v0
 LH_s0(ps::ALSMP) = ps.LH_s0
 Stefan(ps::ALSMP) = ps.Stefan
-
+T_freeze(ps::ALSMP) = ps.T_freeze
 # Derived parameters
 LH_f0(ps::ALSMP) = LH_s0(ps) - LH_v0(ps)
 

@@ -1,6 +1,4 @@
 module Bucket
-# (1) Add snow - is there a better way to handle timesteps where only
-# some of the surface energy is used to melt all of the snow?
 # (2) Make atmos functions a function of space (lat lon? x y? coords?)
 # (3) Look at allocations & performance...
 using UnPack
@@ -31,8 +29,10 @@ export BucketModelParameters,
     surface_fluxes,
     surface_air_density,
     liquid_precipitation,
+    snow_precipitation,
     BulkAlbedo,
-    surface_albedo
+    surface_albedo,
+    partition_surface_fluxes
 
 abstract type AbstractBucketModel{FT} <: AbstractModel{FT} end
 
@@ -94,14 +94,16 @@ struct BucketModelParameters{
     ρc_soil::FT
     "Albedo Model"
     albedo::AAM
-    "Critical SWE amount (m) where surface transitions from soil to snow"
-    S_c::FT
+    "Critical σSWE amount (m) where surface transitions from soil to snow"
+    σS_c::FT
     "Capacity of the land bucket (m)"
     W_f::FT
     "Roughness length for momentum (m)"
     z_0m::FT
     "Roughness length for scalars (m)"
     z_0b::FT
+    "τc timescale on which snow melts"
+    τc::FT
     "Earth Parameter set; physical constants, etc"
     earth_param_set::PSE
 end
@@ -112,10 +114,11 @@ BucketModelParameters(
     κ_soil::FT,
     ρc_soil::FT,
     albedo::AAM,
-    S_c::FT,
+    σS_c::FT,
     W_f::FT,
     z_0m::FT,
     z_0b::FT,
+    τc::FT,
     earth_param_set::PSE,
 ) where {FT, AAM, PSE} = BucketModelParameters{FT, AAM, PSE}(
     d_soil,
@@ -123,25 +126,28 @@ BucketModelParameters(
     κ_soil,
     ρc_soil,
     albedo,
-    S_c,
+    σS_c,
     W_f,
     z_0m,
     z_0b,
+    τc,
     earth_param_set,
 )
 
 """
-    PrescribedAtmosphere{FT, LP, TA, UA, QA, RA} <: AbstractAtmosphericDrivers{FT}
+    PrescribedAtmosphere{FT, LP, SP, TA, UA, QA, RA} <: AbstractAtmosphericDrivers{FT}
 
 Container for holding prescribed atmospheric drivers and other
 information needed for computing turbulent surface fluxes when
 driving the bucket model in standalone mode.
 $(DocStringExtensions.FIELDS)
 """
-struct PrescribedAtmosphere{FT, LP, TA, UA, QA, RA} <:
+struct PrescribedAtmosphere{FT, LP, SP, TA, UA, QA, RA} <:
        AbstractAtmosphericDrivers{FT}
     "Precipitation (m/s) function of time: positive by definition"
     liquid_precip::LP
+    "Snow precipitation (m/s) function of time: positive by definition"
+    snow_precip::SP
     "Prescribed atmospheric temperature (function of time)  at the reference height (K)"
     T_atmos::TA
     "Prescribed wind speed (function of time)  at the reference height (m/s)"
@@ -158,6 +164,7 @@ end
 
 function PrescribedAtmosphere(
     precipitation,
+    snow_precipitation,
     T_atmos,
     u_atmos,
     q_atmos,
@@ -165,7 +172,8 @@ function PrescribedAtmosphere(
     h_atmos,
     ρ_sfc,
 )
-    args = (precipitation, T_atmos, u_atmos, q_atmos, ρ_atmos)
+    args =
+        (precipitation, snow_precipitation, T_atmos, u_atmos, q_atmos, ρ_atmos)
     PrescribedAtmosphere{typeof(h_atmos), typeof.(args)...}(
         args...,
         h_atmos,
@@ -236,7 +244,7 @@ function BucketModel(;
 end
 
 prognostic_types(::BucketModel{FT}) where {FT} = (FT, FT, FT, FT)
-prognostic_vars(::BucketModel) = (:W, :T_sfc, :Ws, :S)
+prognostic_vars(::BucketModel) = (:W, :T_sfc, :Ws, :σS)
 auxiliary_types(::BucketModel{FT}) where {FT} = (FT, FT, FT, FT, FT)
 auxiliary_vars(::BucketModel) = (:q_sfc, :E, :LHF, :SHF, :R_n)
 
@@ -258,7 +266,6 @@ It solves for these given atmospheric conditions, stored in `atmos`,
 model parameters, and the surface temperature and surface specific
 humidity.
 
-Currently, we only support soil covered surfaces.
 """
 function surface_fluxes(
     Y,
@@ -277,8 +284,8 @@ function surface_fluxes(
     return surface_fluxes_at_a_point.(
         Y.bucket.T_sfc,
         p.bucket.q_sfc,
-        Y.bucket.S,
-        coordinate_field(Y.bucket.S),
+        Y.bucket.σS,
+        coordinate_field(Y.bucket.σS),
         t,
         Ref(parameters),
         Ref(atmos),
@@ -289,7 +296,7 @@ end
 function surface_fluxes_at_a_point(
     T_sfc::FT,
     q_sfc::FT,
-    S::FT,
+    σS::FT,
     coords,
     t::FT,
     parameters::P,
@@ -302,7 +309,7 @@ function surface_fluxes_at_a_point(
     PR <: PrescribedRadiativeFluxes{FT},
 }
     @unpack ρ_atmos, T_atmos, u_atmos, q_atmos, h_atmos, ρ_sfc = atmos
-    @unpack albedo, z_0m, z_0b, S_c, earth_param_set = parameters
+    @unpack albedo, z_0m, z_0b, σS_c, earth_param_set = parameters
     @unpack LW_d, SW_d = radiation
     _σ = LSMP.Stefan(earth_param_set)
     _ρ_liq = LSMP.ρ_cloud_liq(earth_param_set)
@@ -336,19 +343,17 @@ function surface_fluxes_at_a_point(
     surface_flux_params = LSMP.surface_fluxes_parameters(earth_param_set)
     conditions = SurfaceFluxes.surface_conditions(surface_flux_params, sc)
 
-    α = surface_albedo(albedo, coords, S, S_c)
+    α = surface_albedo(albedo, coords, σS, σS_c)
     # Recall that the user passed the LW and SW downwelling radiation,
     # where positive values indicate toward surface, so we need a negative sign out front
     # in order to inidicate positive R_n  = towards atmos.
-    R_n = -((FT(1) - α) * SW_d(t) + LW_d(t) - _σ * T_sfc^FT(4.0))
+    R_n = -(FT(1) - α) * SW_d(t) - LW_d(t) + _σ * T_sfc^FT(4.0)
     # Land needs a volume flux of water, not mass flux
     E =
         SurfaceFluxes.evaporation(sc, surface_flux_params, conditions.Ch) /
         _ρ_liq
     return (R_n = R_n, LHF = conditions.lhf, SHF = conditions.shf, E = E)
 end
-
-
 
 """
     make_rhs(model::BucketModel{FT}) where {FT}
@@ -357,37 +362,71 @@ Creates the rhs! function for the bucket model.
 """
 function make_rhs(model::BucketModel{FT}) where {FT}
     function rhs!(dY, Y, p, t)
-        @unpack d_soil, T0, κ_soil, ρc_soil, S_c, W_f = model.parameters
+        @unpack d_soil, T0, κ_soil, ρc_soil, σS_c, W_f = model.parameters
+        #Currently, the entire surface is assumed to be
+        # snow covered or soil covered.
+        snow_cover_fraction = heaviside.(Y.bucket.σS)
+
+        # In this case, there is just one set of surface fluxes to compute.
+        # Since q itself is modified for soil vs snow based off of
+        # the snow cover fraction, and since the surface temperature is
+        # assumed to be the same for snow and underlying soil,
+        # The returned fluxes are computed correctly for the cell
+        # in either the soil or snow covered case.
+
+        # The below is NOT CORRECT if we want the snow
+        # cover fraction to be intermediate between 0 and 1.
+
+        @unpack SHF, LHF, R_n, E = p.bucket
+        F_sfc = @. (R_n + LHF + SHF) # Eqn 16
+
+        _T_freeze = LSMP.T_freeze(model.parameters.earth_param_set)
+        _LH_f0 = LSMP.LH_f0(model.parameters.earth_param_set)
+
+        partitioned_fluxes =
+            partition_surface_fluxes.(
+                Y.bucket.σS,
+                Y.bucket.T_sfc,
+                model.parameters.τc,
+                snow_cover_fraction,
+                E,
+                F_sfc,
+                _LH_f0,
+                _T_freeze,
+            )
+        (; F_melt, F_into_snow, G) = partitioned_fluxes
+
+        # Surface temperature of snow/soil. This is consistent with ignoring the snow energy
+        # of ρcT and only tracking the energy associated with the latent heat.
+        F_bot_soil = @. -κ_soil / (d_soil) * (Y.bucket.T_sfc - T0) # Equation (9)
+        @. dY.bucket.T_sfc = -FT(1.0) / ρc_soil / d_soil * (G - F_bot_soil) # Eq 9
+
+
+        # Water partitioning between snow, infiltration, runoff:
         # Always positive
         liquid_precip = liquid_precipitation(p, model.atmos, t)
-        @unpack SHF, LHF, R_n, E = p.bucket
-        F_surf_soil = @. (R_n + LHF + SHF) # Eqn 16. TODO: modify for snow
+        snow_precip = snow_precipitation(p, model.atmos, t)
 
-        F_bot_soil = @. -κ_soil / (d_soil) * (Y.bucket.T_sfc - T0) # Equation (16)
+        # Always positive; F_melt at present already has σ factor in it.
+        snow_melt = @. (-F_melt / _LH_f0) # Equation (20)
 
-        E_surf_soil = @. (FT(1.0) - heaviside(Y.bucket.S)) * E # Equation (11) assuming E is volume flux
-        space = axes(Y.bucket.S)
-
-        # Always positive
-        snow_melt =
-            zeros(axes(Y.bucket.S)) .* (FT(1.0) .- heaviside.(Y.bucket.S)) # Equation (8)
-
-        infiltration =
-            infiltration_at_point.(
-                Y.bucket.W,
-                snow_melt,
-                liquid_precip,
-                E_surf_soil,
-                W_f,
-            )
+        infiltration = @. infiltration_at_point(
+            Y.bucket.W,
+            snow_melt, # snow melt already multipied by snow_cover_fraction
+            liquid_precip,
+            (FT(1.0) - snow_cover_fraction) * E,
+            W_f,
+        ) # Equation (4b) of the text.
         # Positive infiltration -> net (negative) flux into soil
-        dY.bucket.W .= infiltration # Equation (4a) of the text. 
-        dY.bucket.Ws .=
-            (liquid_precip .+ snow_melt .- E_surf_soil) .- infiltration # Equation (5) of the text
-        dY.bucket.S .= zeros(space) # To be equation (6)
 
-        @. dY.bucket.T_sfc =
-            -FT(1.0) / ρc_soil / d_soil * (F_surf_soil - F_bot_soil) # Eq 16
+        dY.bucket.W .= infiltration # Equation (4a) of the text.
+
+        dY.bucket.Ws = @. (
+            (liquid_precip + snow_melt - (FT(1.0) - snow_cover_fraction) * E) - infiltration
+        ) # Equation (5) of the text
+
+        dY.bucket.σS = @. (snow_precip - snow_cover_fraction * E - snow_melt) # Equation 12
+
     end
     return rhs!
 end
@@ -402,10 +441,20 @@ function liquid_precipitation(p, atmos::PrescribedAtmosphere, t)
 end
 
 """
+    snow_precipitation(p, atmos::PrescribedAtmosphere, t)
+
+Returns the precipitation in snow (m of liquid water/s) at the surface.
+"""
+function snow_precipitation(p, atmos::PrescribedAtmosphere, t)
+    return atmos.snow_precip(t)
+end
+
+"""
     surface_air_density(p, atmos::PrescribedAtmosphere)
 
 Returns the air density (kg/m^3) at the surface.
 """
+
 function surface_air_density(p, atmos::PrescribedAtmosphere)
     return atmos.ρ_sfc
 end
@@ -418,9 +467,22 @@ Creates the update_aux! function for the BucketModel.
 function make_update_aux(model::BucketModel{FT}) where {FT}
     function update_aux!(p, Y, t)
         ρ_sfc = surface_air_density(p, model.atmos)
-        p.bucket.q_sfc .=
-            β.(Y.bucket.W, model.parameters.W_f) .*
-            q_sat.(Y.bucket.T_sfc, Y.bucket.S, ρ_sfc, Ref(model.parameters))
+        snow_cover_fraction = heaviside.(Y.bucket.σS)
+        q_sat =
+            saturation_specific_humidity.(
+                Y.bucket.T_sfc,
+                Y.bucket.σS,
+                surface_air_density(p, model.atmos),
+                Ref(model.parameters),
+            )
+        # This relies on the surface specific humidity being computed
+        # entirely over snow or over soil. i.e. the snow cover fraction must be a heaviside
+        # here, otherwise we would need two values of q_sfc!
+        p.bucket.q_sfc = @. (
+            (FT(1.0) - snow_cover_fraction) *
+            β(Y.bucket.W, model.parameters.W_f) *
+            q_sat + snow_cover_fraction * q_sat
+        )
 
         fluxes = surface_fluxes(
             Y,
