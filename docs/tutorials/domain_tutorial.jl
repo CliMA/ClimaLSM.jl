@@ -22,7 +22,7 @@ variable as a function of space. The nodal points - the locations in space where
 is solved for - are arranged in space in a manner which depends on these basis functions. The method
 `make_function_space(domain)` takes in the information stored in the domain (the spatial extent, resolution, etc)
 and creates the underlying space. Note that this is only needed for domains of variables satisfying PDEs,
-but it is defined for all domains[^function_space].  
+but it is defined for all domains[^1].  
 
 
 (*) ` coordinates(domain)`: under the hood, this function (1) creates the function space and then (2) uses
@@ -32,7 +32,7 @@ the SphericalShell domain has coordinates of latitude, longitude, and height, wh
 of x and y, and a Point domain only has a coordinate z_sfc.
 
 
-[^function_space]: finite differencing is used in the vertical, and spectral elements are used in the horizontal.
+[^1]: finite differencing is used in the vertical, and spectral elements are used in the horizontal.
 
 ## Examples of domains
 All ClimaLSM domains are subtypes of abstract type `ClimaLSM.Domains.AbstractDomain`.
@@ -49,7 +49,7 @@ on the configuration of interest (single column or 3d).
 
 Furthermore, these individual model domains can be composed when building a multi-component
 Land System Model. In this case, the full LSM domain is split into regions:
-the subsurface and the surface[^suprasurfacefootnote]. Different land model components are associated
+the subsurface and the surface[^2]. Different land model components are associated
 with these different regions - e.g. the soil model is a subsurface model, while vegetation
 is a surface model. The above domain types are then paired based on the desired LSM
 domain being modeled:
@@ -57,12 +57,13 @@ domain being modeled:
 | LSM Domain | Surface Domain | Subsurface Domain |
 | :---         |     :---:      |          ---: |
 | LSMSingleColumnDomain   | Point    | Column    |
-| LSMCartesianBoxDomain    | Plane[^surfacefootnote]       | HybridBox      |
-| LSMSphericalShellDomain    | SphericalSurface[^surfacefootnote][^sphsurffootnote]       | SphericalShell      |
+| LSMCartesianBoxDomain    | Plane[^3]       | HybridBox      |
+| LSMSphericalShellDomain    | SphericalSurface[^3][^4]       | SphericalShell      |
 
-[^suprasurfacefootnote]: a suprasurface region may also be necessary - for example if the
+[^2]: a suprasurface region may also be necessary - for example if the
 canopy airspace model involves PDEs. 
-[^surfacefootnote]: We are not sure yet if the surface domain should be associated with a 2d space or if it should
+
+[^3]: We are not sure yet if the surface domain should be associated with a 2d space or if it should
 be a 3d space but with only one point in the vertical. Both would result in the same number of surface
 coordinate points, but they would have different underlying representations. The latter may be helpful because
 we can use the `column` function in the exact same way to extract the same column from the surface and subsurface domains. 
@@ -70,7 +71,8 @@ In that case,
 the surface domain would be a HybdridBox (with one vertical element) instead of a Plane, and a SphericalShell
 (with one vertical element) instead of a Spherical Surface. Regardless, the two domains will share the same
 instance of the horizontal domain.
-[^sphsurffootnote] Note that this is not created as a separate object, yet. It is only made in the process of 
+
+[^4] Note that this is not created as a separate object, yet. It is only made in the process of 
 making the SphericalShell domain.
 
 
