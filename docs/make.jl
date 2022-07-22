@@ -10,11 +10,10 @@ tutorials = [
     "For model developers" => [
         "Using AbstractModel functionality" => "model_tutorial.jl",
         "Intro to multi-component models" => "LSM_single_column_tutorial.jl",
+        "Intro to ClimaLSM Domains" => "domain_tutorial.jl",
     ],
-    "For model users" => [
-        "A land bucket model" =>
-            ["bucket_tutorial.jl", "coupled_bucket.jl"],
-    ],
+    "Running simulations" =>
+        ["The bucket LSM" => ["bucket_tutorial.jl", "coupled_bucket.jl"]],
 ]
 @everywhere const clima_dir = dirname(dirname(pathof(ClimaLSM)));
 @everywhere source_dir = joinpath(@__DIR__, "src")
