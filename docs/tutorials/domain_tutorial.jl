@@ -63,8 +63,6 @@ the SphericalShell domain has coordinates of latitude, longitude, and height, wh
 of x and y, and a Point domain only has a coordinate z_sfc.
 
 
-[^1]: finite differencing is used in the vertical, and spectral elements are used in the horizontal.
-
 ## Domain types
 All ClimaLSM domains are subtypes of abstract type `ClimaLSM.Domains.AbstractDomain`.
 A variety of concrete domain types are supported:
@@ -99,21 +97,6 @@ to develop additional infrastructure in order to, for example, select the correc
 column corresponding to a particular surface location.
 
 
-[^2]: a suprasurface region may also be necessary - for example if the
-canopy airspace model involves PDEs. 
-
-[^3]: We are not sure yet if the surface domain should be associated with a 2d space or if it should
-be a 3d space but with only one point in the vertical. Both would result in the same number of surface
-coordinate points, but they would have different underlying representations. The latter may be helpful because
-we can use the `column` function in the exact same way to extract the same column from the surface and subsurface domains. 
-In that case,
-the surface domain would be a HybdridBox (with one vertical element) instead of a Plane, and a SphericalShell
-(with one vertical element) instead of a Spherical Surface. Regardless, the two domains will share the same
-instance of the horizontal domain.
-
-[^4] Note that this is not created as a separate object, yet. It is only made in the process of 
-making the SphericalShell domain.
-
 
 ## How variable initialization depends on domains
 When a developer creates a model, they need to specify the symbols used for the prognostic variables,
@@ -134,9 +117,6 @@ How do domains tie into this? The field of prognostic variables corresponds in a
 domain. That is, if you coordinate field has points (x,y) in [(1,1), (1,2); (2,1), (2,2)], your prognostic variable field (for variable `θ`,
 for example) will be [θ11, θ12; θ21, θ22]. Your variable always has the same spatial resolution as the domain does.
 
-[^5]: We also will support having an array-like type of variable (perhaps an NTuple; this is TBD). 
-This is to be used for the multi-layer canopy model,
-where for each surface coordinate point we have variables that are array-valued.
 
 ## Future work
 Almost all interactions between variables in land surface models are within column - that is, there is only
@@ -146,4 +126,15 @@ and within the soil. The `right hand side` (rhs) functions (the ODE functions) c
 in two steps: (1) the vertical rhs evaluations are carried out (and can be parallelized), and (2) the horizontal 
 rhs functions are then evaluated (possibly less frequently?) and require communcation between columns.
 In this case, right hand side functions will need to be aware of the domain.
+
+
+[^1]: finite differencing is used in the vertical, and spectral elements are used in the horizontal.
+
+[^2]: a suprasurface region may also be necessary - for example if the canopy airspace model involves PDEs. 
+
+[^3]: We are not sure yet if the surface domain should be associated with a 2d space or if it should be a 3d space but with only one point in the vertical. Both would result in the same number of surface coordinate points, but they would have different underlying representations. The latter may be helpful because we can use the `column` function in the exact same way to extract the same column from the surface and subsurface domains.  In that case, the surface domain would be a HybdridBox (with one vertical element) instead of a Plane, and a SphericalShell (with one vertical element) instead of a Spherical Surface. Regardless, the two domains will share the same instance of the horizontal domain.
+
+[^4] Note that this is not created as a separate object, yet. It is only made in the process of making the SphericalShell domain.
+
+[^5]: We also will support having an array-like type of variable (perhaps an NTuple; this is TBD).  This is to be used for the multi-layer canopy model.
 =#
